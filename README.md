@@ -1,88 +1,35 @@
 # TortoiseBots
 
-TortoiseBots is an optional native PlayerBots module for
-[Tortoise WoW 1.18.1](https://github.com/Penqle/tortoise-wow).
-
-It brings mature PlayerBots combat, movement, class, group, loot, quest and
-travel behavior to Tortoise WoW while keeping bot-specific logic outside the
-core.
+Optional native PlayerBots module for
+[Tortoise WoW 1.18.1](https://github.com/Penqle/tortoise-wow) — harvests
+PlayerBots behavior without the old `GetBot()` / `m_bot` coupling.
 
 > **Harvest behavior, not architecture.**
-
-TortoiseBots uses Penqle's native module system and a small generic host API
-instead of recreating the old tightly coupled `GetBot()` / `m_bot` /
-`sPlayerBotMgr` architecture.
 
 ---
 
 ## Status
 
-> **WIP — Penqle integration smoke testing and upstream host API work are still pending.**
+> **WIP — smoke testing and upstream Headless API still pending.**
 
-- [x] Native TortoiseBots module implemented
-- [x] Mature `PlayerbotAI` integrated
-- [x] All nine Vanilla classes included
-- [x] Vanilla/Turtle 1.18.1 cleanup and compatibility audit completed
-- [x] Headless session lifecycle validated against the pinned baseline
-- [x] PlayerBots-enabled and module-disabled builds validated
-- [ ] Smoke test against the current Penqle modular core
-- [ ] Upstream the required generic Headless session API
-- [ ] Manual owned-bot gameplay acceptance
-- [ ] Manual 5-player dungeon acceptance
+- [x] Native module, 9 Vanilla classes, Vanilla/Turtle 1.18.1 cleanup completed
+- [x] Headless lifecycle + builds validated (module-enabled and `MODULES=disabled`)
+- [ ] Smoke test against current Penqle `main`
+- [ ] Upstream generic Headless API
+- [ ] Manual owned-bot and 5-player dungeon acceptance
 
-The exact currently validated revisions are tracked in Git history and summarized below.
+Validated: module-enabled/disabled builds, world-ready startup, Headless login / AI / save / logout / relogin, human reclaim, `.bot` dispatch + group invite, Goblin/High Elf fixtures, repeatable migrations. Pinned core/module SHAs in Git history.
 
 ---
 
 ## Penqle dependencies
 
-TortoiseBots targets
-[Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow) as its canonical
-core.
-
-### Generic Headless sessions
-
-TortoiseBots needs the core to support a `WorldSession` without a network client.
-
-At a high level the core needs to provide:
-
-- Network and Headless session types
-- character-GUID keyed Headless session management
-- deferred Headless character login
-- normal `World` ownership of Headless session lifetime
-- generic player/world lifecycle hooks
-- generic packet hooks usable by native modules
+Targets [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow).
 
 > [!IMPORTANT]
-> **Requires Penqle PR #411 until merged.**
-> Build against [`Penqle/tortoise-wow#411`](https://github.com/Penqle/tortoise-wow/pull/411)
-> (`feature/headless-world-session`) or wait for `main` to include it.
-> Plain `Penqle/main` without #411 does not provide `SessionTransport::Headless`
-> / GUID-keyed lifecycle and the module will fail to link.
-> Exact pinned SHAs are in Git history (see below).
+> **Requires [Penqle#411](https://github.com/Penqle/tortoise-wow/pull/411) (`feature/headless-world-session`) until merged.** Plain `Penqle/main` lacks `SessionTransport::Headless` and will fail to link.
 
-The intended boundary is:
-
-```text
-Penqle/tortoise-wow
-        |
-        | generic module + Headless host API
-        v
-TortoiseBots
-        |
-        | bot lifecycle + AI + gameplay behavior
-        v
-PlayerbotAI
-```
-
-The core should expose **Headless sessions**, not PlayerBots concepts.
-
-TortoiseBots should **not** require a bot-specific fork of the core.
-
-Removal of Penqle's historical built-in PlayerBots subsystem
-([PR #396](https://github.com/Penqle/tortoise-wow/pull/396)) is desirable for a
-clean core, but it is not itself the functional TortoiseBots host API
-dependency.
+Core exposes generic **Headless sessions** (not PlayerBots concepts) — network/headless types, GUID-keyed Headless lifecycle, deferred login, `World`-owned session lifetime, and generic lifecycle/packet hooks. TortoiseBots assigns bot meaning to them; no bot-specific core fork required.
 
 ---
 
@@ -101,111 +48,45 @@ Targets Vanilla/Turtle 1.18.1 — Death Knights, glyphs, vehicles and arenas are
 
 ## Architecture
 
-TortoiseBots is a native optional module, not a replacement core and not a
-vendored PlayerBots core fork.
+Native optional module, not a vendored core fork:
 
 ```text
-Penqle / Tortoise core
+Penqle / Tortoise core  — generic Headless / lifecycle / packet hooks
         |
-        | generic Headless / lifecycle / packet / command hooks
-        v
-TortoiseBots
-        |
-        +-- BotManager
-        +-- PlayerbotAIAdapter
-        +-- PlayerbotAIStorage
-        +-- host adapters
-        +-- mature PlayerbotAI
-        +-- Strategy / Trigger / Action / Value
+TortoiseBots — BotManager + PlayerbotAIAdapter/Storage + host adapters + PlayerbotAI (Strategy/Trigger/Action/Value)
 ```
 
-Normal core gameplay code should not need bot-specific state.
+- Session: `one account → at most one Network session + N Headless (GUID-keyed)`. Core owns `WorldSession` lifetime; module owns bot records/AI.
+- Core gameplay never checks `IsBot()` / `GetBot()` / `m_bot` / `sPlayerBotMgr`.
 
-Legacy patterns such as these are intentionally avoided:
-
-```cpp
-WorldSession::GetBot()
-WorldSession::SetBot()
-m_bot
-sPlayerBotMgr
-PlayerBotEntry
-```
-
----
-
-## Session model
-
-Owned bots are normal Tortoise characters using Headless `WorldSession`s.
-
-```text
-One account
-    +-- at most one Network session
-    +-- zero or more Headless character sessions
-```
-
-Network sessions remain account-keyed. Headless sessions are keyed by character GUID.
-
-This allows a connected player and owned alternate characters to coexist
-without fake account IDs or dedicated bot accounts.
-
-The core owns `WorldSession` lifetime. TortoiseBots owns bot records and AI.
-
-The detailed integration contract is documented in [`docs/HOST_API.md`](docs/HOST_API.md).
+Details: [`docs/HOST_API.md`](docs/HOST_API.md), [`docs/PLAN.md`](docs/PLAN.md).
 
 ---
 
 ## Commands
 
-The native command surface currently includes:
-
 ```text
-.bot add
-.bot remove
-.bot follow
-.bot invite
-.bot uninvite
-.bot stay
-.bot list
-.bot stats
-.bot command
-.bot help
+.bot add | remove | follow | invite | uninvite | stay | list | stats | command | help
 ```
 
-`.bot command` forwards into the mature PlayerBots command system for the
-selected bot. Commands enforce normal account ownership or GM authority.
+`.bot command` forwards to the mature PlayerBots command system. Ownership/GM checks enforced.
 
 ---
 
 ## Module layout
 
-TortoiseBots is consumed through Penqle's native module system:
+Consumed as `tortoise-wow/modules/TortoiseBots/`:
 
 ```text
-tortoise-wow/
-└── modules/
-    └── TortoiseBots/
-```
-
-Main directories:
-
-```text
-ai/          PlayerBots AI and Turtle compatibility
-behavior/    Module-owned helpers
-commands/    Native .bot commands
-conf/        Module configuration
-data/sql/    Module migrations
-host/        Penqle <-> TortoiseBots boundary
-runtime/     Bot lifecycle and AI ownership
-src/         Native module entrypoint
-tools/       Audit and development tooling
-docs/        Architecture, status and provenance
+ai/        PlayerBots AI + Turtle shims    host/      Penqle boundary
+runtime/   Bot lifecycle / AI ownership    commands/  Native .bot
+conf/      tortoise_bots.conf.dist         data/sql/  world/ + character migrations
+src/       Native entrypoint               docs/      Architecture / provenance
 ```
 
 ---
 
 ## Build
-
-Normal native module selection:
 
 ```text
 BUILD_LEGACY_PLAYERBOTS=OFF
@@ -213,93 +94,44 @@ MODULES=static
 MODULE_TORTOISEBOTS=static
 ```
 
-`BUILD_LEGACY_PLAYERBOTS` refers to the historical built-in PlayerBots
-implementation and should remain disabled when using TortoiseBots.
-
-See [`AGENTS.md`](AGENTS.md) for development and validation workflow.
+See [`AGENTS.md`](AGENTS.md) for workflow.
 
 ---
 
-## Configuration and data
-
-Configuration:
+## Configuration
 
 ```text
 conf/tortoise_bots.conf.dist
 ai/playerbot/aiplayerbot.conf.dist.in
+data/sql/world/  data/sql/char/
 ```
 
-Database migrations:
-
-```text
-data/sql/world/
-data/sql/char/
-```
-
-The inherited PlayerBots configuration is broader than the currently validated
-Turtle gameplay surface. The existence of a setting does not by itself mean the
-corresponding feature has completed gameplay acceptance.
-
----
-
-## Validation
-
-The pinned baseline has recorded evidence for:
-
-- module-enabled and module-disabled builds
-- module loading and world-ready startup
-- Headless character login, AI attachment, save / logout / relogin
-- same-account human reclaim
-- native command dispatch and group invite handling
-- Goblin and High Elf lifecycle fixtures
-- repeatable module migrations
-
-Still pending:
-
-- smoke test against the current Penqle modular core
-- manual owned-bot gameplay acceptance
-- full 5-player dungeon acceptance
-- broader Turtle class/spec/content testing
-- large random-bot population testing
-
-See below for the validation boundary and pinned core/module SHAs.
+Inherited config is broader than validated Turtle surface — a setting existing does not mean it's gameplay-tested.
 
 ---
 
 ## References
 
-The canonical target core is:
-
-- [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow)
-
-Major donor/reference sources include:
-
-- [TortoiseWoW Knowledge Base](https://github.com/tortoise-wow-stack/TortoiseWoWKnowledgeBase)
-- [CMaNGOS PlayerBots](https://github.com/cmangos/playerbots)
-- [Shyalya/tortoise-wow](https://github.com/Shyalya/tortoise-wow)
-- [MangosZero](https://github.com/mangoszero/server)
-- [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
-
-These repositories are behavior and compatibility references, not the target
-core. Exact source lineage is recorded in [`docs/PROVENANCE.md`](docs/PROVENANCE.md).
+- Canonical core: [Penqle/tortoise-wow](https://github.com/Penqle/tortoise-wow)
+- Donors (behavior refs, not target): [Knowledge Base](https://github.com/tortoise-wow-stack/TortoiseWoWKnowledgeBase), [cmangos/playerbots](https://github.com/cmangos/playerbots), [Shyalya](https://github.com/Shyalya/tortoise-wow), [MangosZero](https://github.com/mangoszero/server), [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) — lineage in [`docs/PROVENANCE.md`](docs/PROVENANCE.md)
 
 ---
 
 ## Licence
 
-- **TortoiseBots module** — GPL-2.0 (see donor headers in `ai/playerbot/`)
+- **TortoiseBots module** — GPL-2.0 (donor headers in `ai/playerbot/`)
 - **Penqle/tortoise-wow** — AGPL-3.0 — combined binary is AGPL-3.0
 
-See [`LICENCE.md`](LICENCE.md) for full details and donor licences.
+See [`LICENCE.md`](LICENCE.md).
 
 ---
 
 ## Documentation
 
-- [`docs/PLAN.md`](docs/PLAN.md) — architecture and roadmap
-- [`docs/HOST_API.md`](docs/HOST_API.md) — Penqle/module host contract
-- [`AGENTS.md`](AGENTS.md) — contributor and agent rules
-- [`docs/PROVENANCE.md`](docs/PROVENANCE.md) — donor/source lineage
-- [`LICENCE.md`](LICENCE.md) — upstream and donor licences
+- [`docs/PLAN.md`](docs/PLAN.md) — architecture / roadmap
+- [`docs/HOST_API.md`](docs/HOST_API.md) — host contract
+- [`AGENTS.md`](AGENTS.md) — contributor / agent rules
+- [`docs/PROVENANCE.md`](docs/PROVENANCE.md) — donor lineage
+- [`LICENCE.md`](LICENCE.md) — licences
 
-Historical audit evidence remains in Git history and (if retained) under `docs/archive/`.
+History in Git and `docs/archive/` if retained.
