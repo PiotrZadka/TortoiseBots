@@ -269,6 +269,16 @@ only to satisfy a donor interface.
 The completed audit removed or disabled several such compatibility surfaces;
 see [PLAYERBOTS_AUDIT.md](archive/PLAYERBOTS_AUDIT.md) for evidence.
 
+**RNDBOT auto-create — deferred gate:** `AccountMgr::CreateAccount` and the generic
+Headless session lifecycle (§4–§5) are reusable generic boundaries. The pinned target
+core exposes no generic character-materialization API; do not copy `CharacterHandler`
+validation or run `Player::Create` / `SaveToDB` / `PlayerbotFactory` on a database
+worker. `RNDBOT` auto-create remains deferred until a generic core-owned
+character-creation seam is proven and documented here. Default discover-only
+`RandomBotService` behavior is retained (existing `RNDBOT%` accounts/characters only,
+no `INSERT`), and this contract claims no module, core, or data changes for
+auto-create.
+
 ## 16. New core seam test
 
 Before adding another core seam, establish that:
