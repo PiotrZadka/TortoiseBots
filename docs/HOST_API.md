@@ -245,19 +245,22 @@ generation must not start implicitly on the world thread.
 The inherited AI config is broader than the currently accepted Turtle product;
 a config key existing is not itself a support claim.
 
-**Random gear cache — present / closed (docs only, no code/data change):**
+**Random gear cache — fail-closed empty-input path (docs only, no code/data change):**
 Optional `ai_playerbot_weightscales` / `ai_playerbot_weightscale_data` and derived
-`ai_playerbot_equip_cache` / `ai_playerbot_rnditem_cache`
-(`ai/playerbot/RandomItemMgr.cpp` `BuildItemInfoCache()` → `BuildEquipCache()` →
-`BuildRandomItemCache()`) fail closed when missing/empty —
+`ai_playerbot_item_info_cache` / `ai_playerbot_equip_cache` /
+`ai_playerbot_rnditem_cache` are handled by `RandomItemMgr::Init()` in its source
+order. When the optional weight-scale tables are missing/empty,
 `BuildItemInfoCache()` logs `optional item weight scales are empty; random gear
-scoring is unavailable` and returns early, while `BuildEquipCache()` /
+scoring is unavailable` and returns before item-info generation; `BuildEquipCache()` /
 `BuildRandomItemCache()` independently skip generation when their character-cache
-tables are missing/empty. No world-thread cache DDL/generation or boot stall
-occurs (donor world-thread build rejected). `AiPlayerbot.GenerateTravelNodes=0`
-remains the default. Spec-optimal gear via `GetStatWeight`/`Query(level,class,spec,slot)`
-requires explicit precomputed/validated `weightscales` + `weightscale_data` and a
-supported cache population path later. No module/core/data changes claimed.
+tables are missing/empty. In this empty/missing-input case, no world-thread cache DDL/
+generation or boot stall occurs. Populated weight scales currently trigger synchronous
+`ai_playerbot_item_info_cache` regeneration at startup, so that path remains an
+explicit maintenance/acceptance gate rather than a no-stall guarantee.
+`AiPlayerbot.GenerateTravelNodes=0` remains the default. Spec-optimal gear via
+`GetStatWeight`/`Query(level,class,spec,slot,quality)` requires explicit validated
+weight-scale data and a supported cache population path later. No module/core/data
+changes claimed.
 
 ## 14. Turtle data contract
 
