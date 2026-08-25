@@ -245,6 +245,20 @@ generation must not start implicitly on the world thread.
 The inherited AI config is broader than the currently accepted Turtle product;
 a config key existing is not itself a support claim.
 
+**Random gear cache — present / closed (docs only, no code/data change):**
+Optional `ai_playerbot_weightscales` / `ai_playerbot_weightscale_data` and derived
+`ai_playerbot_equip_cache` / `ai_playerbot_rnditem_cache`
+(`ai/playerbot/RandomItemMgr.cpp` `BuildItemInfoCache()` → `BuildEquipCache()` →
+`BuildRandomItemCache()`) fail closed when missing/empty —
+`BuildItemInfoCache()` logs `optional item weight scales are empty; random gear
+scoring is unavailable` and returns early, while `BuildEquipCache()` /
+`BuildRandomItemCache()` independently skip generation when their character-cache
+tables are missing/empty. No world-thread cache DDL/generation or boot stall
+occurs (donor world-thread build rejected). `AiPlayerbot.GenerateTravelNodes=0`
+remains the default. Spec-optimal gear via `GetStatWeight`/`Query(level,class,spec,slot)`
+requires explicit precomputed/validated `weightscales` + `weightscale_data` and a
+supported cache population path later. No module/core/data changes claimed.
+
 ## 14. Turtle data contract
 
 Turtle-specific legality/content should come from the target core/data where
