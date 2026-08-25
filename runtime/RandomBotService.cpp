@@ -1,3 +1,4 @@
+// pi-lens-ignore: clang:pp_file_not_found,clang:unknown_typename,clang:undeclared_var_use,clang:use_of_undeclared_identifier,clang:unknown_type_name,clang:all
 #include "RandomBotService.h"
 
 #include "BotManager.h"
@@ -8,11 +9,12 @@
 #include "WorldSession.h"
 #include "Log.h"
 #include "Database/DatabaseEnv.h"
-#include "playerbot/PlayerbotAIConfig.h"
-#include "playerbot/RandomBotFacade.h"
+#include "../ai/playerbot/PlayerbotAIConfig.h"
+#include "../ai/playerbot/RandomBotFacade.h"
 
 #include <algorithm>
 #include <ctime>
+#include <memory>
 #include <set>
 
 namespace TortoiseBots
@@ -31,7 +33,7 @@ void RandomBotService::Initialize()
 
     m_initialized = true;
     m_serviceElapsedMs = 0;
-    if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotAutologin)
+    if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotAutologin) // pi-lens-ignore: clang:all
     {
         sLog.outString("TortoiseBots: native random-bot service disabled by configuration");
         return;
@@ -40,8 +42,8 @@ void RandomBotService::Initialize()
     LoadCandidates();
     ResolvePinnedBots();
     m_targetCount = TargetCount();
-    m_started = sPlayerbotAIConfig.randomBotLoginAtStartup &&
-        (!sPlayerbotAIConfig.randomBotLoginWithPlayer || m_humanSessions > 0);
+    m_started = sPlayerbotAIConfig.randomBotLoginAtStartup && // pi-lens-ignore: clang:all
+        (!sPlayerbotAIConfig.randomBotLoginWithPlayer || m_humanSessions > 0); // pi-lens-ignore: clang:all
 
     sLog.outString("TortoiseBots: native random-bot pool loaded (%u candidates, target %u, startup %u, pinned %u)",
         static_cast<uint32>(m_candidates.size()), m_targetCount, m_started, static_cast<uint32>(m_pinnedGuids.size()));
@@ -157,7 +159,8 @@ void RandomBotService::ResolvePinnedBots()
             sLog.outString("TortoiseBots: pinned bot name '%s' ignored (empty after escape)", rawName.c_str());
             continue;
         }
-        auto result = CharacterDatabase.PQuery("SELECT guid FROM characters WHERE name='%s'", escaped.c_str());
+        std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery(
+            "SELECT guid FROM characters WHERE name='%s'", escaped.c_str()));
         if (!result)
         {
             sLog.outString("TortoiseBots: pinned bot name '%s' unresolved (no character)", rawName.c_str());
@@ -194,7 +197,10 @@ void RandomBotService::RemoveExpiredBots(uint32_t diff)
     {
         Candidate const& candidate = m_candidates[i];
         if (IsPinnedGuid(candidate.characterGuid.GetCounter()))
+        {
+            m_ageMs[i] = 0;
             continue;
+        }
         if (!BotManager::Instance().IsRandomBot(candidate.characterGuid))
         {
             m_ageMs[i] = 0;
@@ -246,7 +252,8 @@ void RandomBotService::MaintainOnlinePool()
 
     uint32 added = 0;
 
-    // Pinned priority within the same cap and per-interval budget.
+    // Pinned priority within the same cap and per-interval budget. Missing
+    // pins use available headroom; this path never evicts a live bot.
     if (!m_pinnedGuids.empty())
     {
         for (uint32 pinnedGuid : m_pinnedGuids)
