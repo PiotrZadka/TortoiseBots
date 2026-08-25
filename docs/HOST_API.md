@@ -279,7 +279,7 @@ character-creation seam is proven and documented here. Default discover-only
 no `INSERT`), and this contract claims no module, core, or data changes for
 auto-create.
 
-**LFT / RNDBOT auto-fill — deferred gate:** Current `LFTManager` (`src/game/LFT/LFTMgr.h/cpp`) owns private `m_queue` (`QueueMap`/`QueuedPlayer`), `m_offers`/`m_rolechecks`/`m_listings` and offer/rolecheck/group lifecycle (`Update`/`TryMakeOffers`/`CancelOffer`/`CompleteOffer`); TortoiseBots has no generic participant/proposal hook. LFT/RNDBOT auto-fill remains deferred until the 5-player dungeon MVP and a proven type-agnostic, core-owned lifecycle. Prohibited: direct `m_queue` mutation, owning a second queue, `RNDBOT` hardwire in core, or fake config/behavior (`LFTBotFill.Enabled`/`DelaySeconds`). Native LFT/meeting-stone and manual `.bot invite` remain authoritative; no module, core, or data changes claimed.
+**LFT / RNDBOT auto-fill — deferred gate:** Current `LFTManager` (`src/game/LFT/LFTMgr.h/cpp`, queue/offer bodies in `LFTQeueue.cpp`) owns private `m_queue` (`QueueMap`/`QueuedPlayer`), `m_offers`/`m_rolechecks`/`m_listings` and offer/rolecheck/group lifecycle (`Update`/`TryMakeOffers`/`CancelOffer`/`CompleteOffer`); TortoiseBots has no generic participant/proposal hook. LFT/RNDBOT auto-fill remains deferred until the 5-player dungeon MVP and a proven type-agnostic, core-owned lifecycle. Prohibited: direct `m_queue` mutation, owning a second queue, `RNDBOT` hardwire in core, or fake config/behavior (`LFTBotFill.Enabled`/`DelaySeconds`). Native LFT/meeting-stone and manual `.bot invite` remain authoritative; no module, core, or data changes claimed.
 
 ## 16. New core seam test
 
