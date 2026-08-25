@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <set>
 #include <vector>
 
 #include "ObjectGuid.h"
@@ -34,6 +35,8 @@ private:
     ~RandomBotService() = default;
 
     void LoadCandidates();
+    void ResolvePinnedBots();
+    bool IsPinnedGuid(uint32_t guidLow) const;
     void MaintainOnlinePool();
     void RemoveExpiredBots(uint32_t diff);
     uint32_t TargetCount() const;
@@ -42,6 +45,7 @@ private:
     std::vector<uint32_t> m_ageMs;
     std::vector<uint32_t> m_strategyAgeMs;
     std::vector<uint32_t> m_randomizeAgeMs;
+    std::set<uint32_t> m_pinnedGuids;
     size_t m_nextCandidate = 0;
     uint32_t m_serviceElapsedMs = 0;
     uint32_t m_targetCount = 0;
