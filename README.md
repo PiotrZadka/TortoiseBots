@@ -52,7 +52,7 @@ Already upstream in Penqle through:
 
 ### Generic Headless sessions
 
-TortoiseBots needs Penqle to support a `WorldSession` without a network client.
+TortoiseBots needs the core (`tortoise-wow`) to support a `WorldSession` without a network client.
 
 At a high level the core needs to provide:
 
@@ -85,9 +85,9 @@ TortoiseBots
 PlayerbotAI
 ```
 
-Penqle should understand **Headless sessions**, not PlayerBots.
+The core should expose **Headless sessions**, not PlayerBots concepts.
 
-TortoiseBots should **not** require a bot-specific Penqle fork.
+TortoiseBots should **not** require a bot-specific fork of the core.
 
 Removal of Penqle's historical built-in PlayerBots subsystem
 ([PR #396](https://github.com/Penqle/tortoise-wow/pull/396)) is desirable for a
