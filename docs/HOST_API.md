@@ -281,6 +281,8 @@ auto-create.
 
 **LFT / RNDBOT auto-fill — deferred gate:** Current pinned-core `LFTManager` (`src/game/LFT/LFTMgr.h/cpp`, queue/offer bodies in its intentionally named `LFTQeueue.cpp`) owns private `m_queue` (`QueueMap`/`QueuedPlayer`), `m_offers`/`m_rolechecks`/`m_listings` and offer/rolecheck/group lifecycle (`Update`/`TryMakeOffers`/`CancelOffer`/`CompleteOffer`); TortoiseBots has no generic participant/proposal hook. LFT/RNDBOT auto-fill remains deferred until the 5-player dungeon MVP and a proven type-agnostic, core-owned lifecycle. Prohibited: direct `m_queue` mutation, owning a second queue, `RNDBOT` hardwire in core, or fake config/behavior (`LFTBotFill.Enabled`/`DelaySeconds`). Native LFT/meeting-stone and manual `.bot invite` remain authoritative; no module, core, or data changes claimed.
 
+**AH market (AhBot) — deferred gate:** Current per-bot `AhAction` (`ai/playerbot/strategy/actions/AhAction.cpp` via `GetCheckedAuctionHouseForAuctioneer` + `HandleAuctionSellItem`/`HandleAuctionPlaceBid` and `sAuctionMgr.GetAuctionsMap(...)->GetAuctionsSnapshot()` under `sRandomBotFacade.m_ahActionMutex.try_lock()`) uses live auctioneer/session native handlers; no population market service exists (`ahbot/*` absent, no `RandomBotService::SeedAhMarket()`). Market seeding is deferred until the 5-player dungeon MVP and a verified native transaction/item-ownership acceptance path. Prohibited: donor 900-second update thread, direct `AuctionHouseMgr`/`auctionhouse` DB ownership, fabricated `AddAuction`/`Category::GetBag`/`AhAction::Sell`/`RandomBotFacade::GetAuctionsSnapshot` APIs, and default-on/per-tick scans. No code/config/data change is claimed.
+
 ## 16. New core seam test
 
 Before adding another core seam, establish that:
