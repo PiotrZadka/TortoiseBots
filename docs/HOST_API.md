@@ -260,6 +260,8 @@ possible:
 Do not replace target data with old Vanilla tables when the target already owns
 the answer.
 
+**Goblin / High Elf spawn — closed / fixed:** `TravelNodeMap::generateStartNodes()` (`ai/playerbot/TravelNode.cpp`) and `PlayerbotAIConfig` legality derive start positions and race/class validity from core `PlayerInfo` (`sObjectMgr.GetPlayerInfo` over `playercreateinfo`); `ReleaseSpiritAction::RepopAction` uses that `PlayerInfo` position with `homebind` fallback only when no row exists. No `RACE_GOBLIN`→Durotar / `RACE_HIGH_ELF`→Elwynn donor hack is present and none should be re-added. Shipped `maps/0013245.map`+`mmaps/0013245.mmtile` (Goblin) and `maps/0002536.map`+`mmaps/0002536.mmtile` (High Elf) complete the data path — no module code or data change required. Movement/LoS acceptance and the separate High Elf `vmaps/000_25_36` gap remain distinct (tracked in `08_VMAPS_HIGHELF.md` / audit F-06) and are not claimed as tested here.
+
 ## 15. Unsupported capabilities
 
 When a donor behavior has no meaningful equivalent in the pinned core, adapt it
