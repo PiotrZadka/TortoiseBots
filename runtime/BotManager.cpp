@@ -20,8 +20,10 @@
 #include "WorldPacket.h"
 #include "Chat.h"
 #include "Group/Group.h"
-#include "Maps/GridMap.h"
-#include "../commands/BotCommands.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Movement/MotionMaster.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Maps/Map.h"
 #include "../ai/playerbot/PlayerbotAIConfig.h"
 #include "../ai/playerbot/TravelMgr.h"
 #include "../ai/playerbot/WorldPosition.h"
@@ -651,6 +653,355 @@ void BotManager::SetPacketBridgeTestEnabled(bool enable, uint32_t accountId,
         masterGuid.GetString().c_str(), botGuid.GetString().c_str());
 }
 
+bool BotManager::RequestPullback(Player* requester, Player* tank, Unit* target, bool isRanged, float desiredDist)
+{
+    if (!requester || !tank || !target)
+        return false;
+    if (!tank->IsInWorld() || !target->IsInWorld() || tank->GetMap() != target->GetMap() || requester->GetMap() != tank->GetMap())
+        return false;
+    uint32_t key = tank->GetObjectGuid().GetCounter();
+    if (m_pullbacks.find(key) != m_pullbacks.end())
+        return false;
+    PullbackState st;
+    st.tankGuid = tank->GetObjectGuid();
+    st.masterGuid = requester->GetObjectGuid();
+    st.targetGuid = target->getObjectGuid();
+    if (target->GetTypeId() == TYPEID_UNIT)
+        st.targetEntry = static_cast<Creature*>(target)->GetEntry();
+    else
+        st.targetEntry = 0;
+    st.anchorX = requester->getPositionX();
+    st.anchorY = requester->getPositionY();
+    st.anchorZ = requester->getPositionZ();
+    st.anchorMap = requester->GetMapId();
+    st.desiredDist = desiredDist > 0.1f ? desiredDist : (isRanged ? 28.0f : 12.0f);
+    st.isRanged = isRanged;
+    st.elapsedMs = 0;
+    st.phaseElapsedMs = 0;
+    st.phase = PullbackState::Approaching;
+    m_pullbacks.emplace(key, st);
+    sLog.outString("TortoiseBots: Pullback requested tank %s -> target %s entry %u ranged %u dist %.1f anchor %.1f,%.1f,%.1f",
+        tank->GetName(), target->GetName(), st.targetEntry, isRanged ? 1 : 0, st.desiredDist, st.anchorX, st.anchorY, st.anchorZ);
+    return true;
+}
+
+void BotManager::CancelPullback(ObjectGuid tankGuid)
+{
+    m_pullbacks.erase(tankGuid.GetCounter());
+}
+
+bool BotManager::IsPullbackActive(ObjectGuid tankGuid) const
+{
+    return m_pullbacks.find(tankGuid.GetCounter()) != m_pullbacks.end();
+}
+
+void BotManager::UpdatePullbacks(uint32_t diff)
+{
+    if (m_pullbacks.empty())
+        return;
+    for (auto it = m_pullbacks.begin(); it != m_pullbacks.end(); )
+    {
+        PullbackState& st = it->second;
+        st.elapsedMs += diff;
+        st.phaseElapsedMs += diff;
+        if (st.elapsedMs > 30000)
+        {
+            sLog.outString("TortoiseBots: Pullback timeout tank %s", st.tankGuid.GetString().c_str());
+            it = m_pullbacks.erase(it);
+            continue;
+        }
+        Player* tank = sObjectAccessor.FindPlayer(st.tankGuid);
+        if (!tank || !tank->IsInWorld() || !tank->GetSession() || !tank->GetSession()->IsHeadless())
+        {
+            it = m_pullbacks.erase(it);
+            continue;
+        }
+        Unit* target = nullptr;
+        if (!st.targetGuid.IsEmpty())
+        {
+            if (st.targetGuid.IsPlayer())
+                target = sObjectAccessor.FindPlayer(st.targetGuid);
+            else
+            {
+                PlayerbotAI* aiTmp = PlayerbotAIStorage::Instance().GetAI(tank);
+                if (aiTmp)
+                    target = aiTmp->GetUnit(st.targetGuid);
+            }
+        }
+        if (!target || !target->IsAlive() || !target->IsInWorld() || tank->GetMap() != target->GetMap())
+        {
+            if (st.phase == PullbackState::Holding)
+            {
+                if (st.phaseElapsedMs > 3000)
+                {
+                    sLog.outString("TortoiseBots: Pullback holding done (target gone) tank %s", tank->GetName());
+                    it = m_pullbacks.erase(it);
+                    continue;
+                }
+            }
+            else if (st.phase != PullbackState::Approaching || st.elapsedMs > 8000)
+            {
+                sLog.outString("TortoiseBots: Pullback lost target tank %s", tank->GetName());
+                it = m_pullbacks.erase(it);
+                continue;
+            }
+        }
+        bool tankInCombat = tank->IsInCombat();
+        bool targetInCombat = target ? target->IsInCombat() : false;
+        switch (st.phase)
+        {
+            case PullbackState::Approaching:
+            {
+                if (!target)
+                {
+                    if (st.phaseElapsedMs > 10000) { it = m_pullbacks.erase(it); continue; }
+                    else { ++it; continue; }
+                }
+                float distToTarget = tank->GetDistance(target);
+                if (tankInCombat || targetInCombat)
+                {
+                    st.phase = PullbackState::Returning;
+                    st.phaseElapsedMs = 0;
+                    sLog.outString("TortoiseBots: Pullback approaching -> returning (combat) tank %s dist %.1f", tank->GetName(), distToTarget);
+                    ++it; continue;
+                }
+                if (distToTarget <= st.desiredDist + 2.0f)
+                {
+                    if (st.isRanged)
+                    {
+                        st.phase = PullbackState::Pulling;
+                        st.phaseElapsedMs = 0;
+                        sLog.outString("TortoiseBots: Pullback approaching -> pulling (ranged) tank %s", tank->GetName());
+                    }
+                    else
+                    {
+                        st.phase = PullbackState::Returning;
+                        st.phaseElapsedMs = 0;
+                        sLog.outString("TortoiseBots: Pullback approaching -> returning (melee) tank %s", tank->GetName());
+                    }
+                    ++it; continue;
+                }
+                if (st.phaseElapsedMs < 400 && tank->GetMotionMaster() && tank->GetMotionMaster()->GetCurrentMovementGeneratorType() != IDLE_MOTION_TYPE)
+                {
+                    ++it; continue;
+                }
+                st.phaseElapsedMs = 0;
+                float angle = target->GetAngle(tank);
+                float x = target->getPositionX() + cos(angle) * st.desiredDist;
+                float y = target->getPositionY() + sin(angle) * st.desiredDist;
+                float z = target->getPositionZ() + 0.3f;
+                if (MotionMaster* mm = tank->GetMotionMaster())
+                {
+                    mm->Clear();
+                    mm->MovePoint(0, x, y, z);
+                }
+                ++it; continue;
+            }
+            case PullbackState::Pulling:
+            {
+                if (!target) { st.phase = PullbackState::Returning; st.phaseElapsedMs = 0; ++it; continue; }
+                if (targetInCombat || tankInCombat) { st.phase = PullbackState::Returning; st.phaseElapsedMs = 0; ++it; continue; }
+                if (st.phaseElapsedMs > 800 || st.phaseElapsedMs == diff)
+                {
+                    PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(tank);
+                    bool didCast = false;
+                    if (ai)
+                    {
+                        const char* tries[] = {"shoot", "shoot bow", "shoot gun", "shoot crossbow", "throw", nullptr};
+                        for (int i = 0; tries[i]; ++i)
+                        {
+                            if (ai->CanCastSpell(tries[i], target, true, nullptr, true))
+                            {
+                                Event ev("pullback", target->getObjectGuid());
+                                if (ai->DoSpecificAction(tries[i], ev, true))
+                                {
+                                    didCast = true;
+                                    sLog.outString("TortoiseBots: Pullback ranged cast %s tank %s -> %s", tries[i], tank->GetName(), target->GetName());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (didCast) { st.phase = PullbackState::Returning; st.phaseElapsedMs = 0; ++it; continue; }
+                    if (st.phaseElapsedMs > 3000)
+                    {
+                        sLog.outString("TortoiseBots: Pullback pulling timeout tank %s, fallback return", tank->GetName());
+                        st.phase = PullbackState::Returning; st.phaseElapsedMs = 0;
+                    }
+                }
+                if (st.phaseElapsedMs > 8000) { st.phase = PullbackState::Returning; st.phaseElapsedMs = 0; }
+                ++it; continue;
+            }
+            case PullbackState::Returning:
+            {
+                float distToAnchor = tank->GetDistance(st.anchorX, st.anchorY, st.anchorZ);
+                if (distToAnchor <= 4.0f)
+                {
+                    if (MotionMaster* mm = tank->GetMotionMaster()) mm->Clear();
+                    tank->StopMoving();
+                    if (target) tank->SetFacingTo(tank->GetAngle(target));
+                    st.phase = PullbackState::Holding;
+                    st.phaseElapsedMs = 0;
+                    sLog.outString("TortoiseBots: Pullback returning -> holding tank %s at anchor", tank->GetName());
+                    ++it; continue;
+                }
+                if (st.phaseElapsedMs < 300 && tank->GetMotionMaster() && tank->GetMotionMaster()->GetCurrentMovementGeneratorType() != IDLE_MOTION_TYPE)
+                {
+                    ++it; continue;
+                }
+                if (st.phaseElapsedMs > 500 || distToAnchor > 5.0f)
+                {
+                    st.phaseElapsedMs = 0;
+                    if (MotionMaster* mm = tank->GetMotionMaster())
+                    {
+                        mm->Clear();
+                        mm->MovePoint(1, st.anchorX, st.anchorY, st.anchorZ);
+                    }
+                }
+                ++it; continue;
+            }
+            case PullbackState::Holding:
+            {
+                if (target && target->IsAlive() && target->IsInWorld())
+                {
+                    tank->SetFacingTo(tank->GetAngle(target));
+                    if (st.phaseElapsedMs % 1000 < (uint32)diff) tank->SendHeartBeat();
+                }
+                float distToAnchor = tank->GetDistance(st.anchorX, st.anchorY, st.anchorZ);
+                if (distToAnchor > 5.0f && st.phaseElapsedMs > 1000)
+                {
+                    st.phase = PullbackState::Returning; st.phaseElapsedMs = 0; ++it; continue;
+                }
+                bool stillInCombat = tankInCombat || (target && targetInCombat);
+                if (!stillInCombat && st.phaseElapsedMs > 2000)
+                {
+                    sLog.outString("TortoiseBots: Pullback holding done tank %s", tank->GetName());
+                    it = m_pullbacks.erase(it); continue;
+                }
+                if ((!target || !target->IsAlive()) && st.phaseElapsedMs > 2000) { it = m_pullbacks.erase(it); continue; }
+                if (st.phaseElapsedMs > 30000) { it = m_pullbacks.erase(it); continue; }
+                ++it; continue;
+            }
+        }
+        ++it;
+    }
+}
+
+bool BotManager::RequestSummon(Player* requester, Player* bot)
+{
+    if (!requester || !bot) return false;
+    if (!requester->IsInWorld() || requester->IsBeingTeleported()) return false;
+    if (!bot->IsInWorld() || bot->IsBeingTeleported()) return false;
+    if (!bot->IsAlive()) return false;
+    if (bot->IsInCombat()) return false;
+    if (bot->IsTaxiFlying()) return false;
+    uint32_t key = bot->GetObjectGuid().GetCounter();
+    if (m_summons.find(key) != m_summons.end()) return false;
+    if (m_pullbacks.find(key) != m_pullbacks.end()) return false;
+    // Compute 5y point in front of requester (or slightly randomized to avoid stacking)
+    float o = requester->getOrientation();
+    // Use a small random angle offset so multiple summons don't stack exactly
+    float angle = o + (rand() % 60 - 30) * M_PI / 180.0f;
+    float dist = 5.0f;
+    float x = requester->getPositionX() + cos(angle) * dist;
+    float y = requester->getPositionY() + sin(angle) * dist;
+    float z = requester->getPositionZ();
+    // Try to snap to ground if map available
+    // Use simple height check; for POC keep requester Z + 0.5
+    z += 0.5f;
+    SummonState st;
+    st.botGuid = bot->GetObjectGuid();
+    st.masterGuid = requester->GetObjectGuid();
+    st.destX = x; st.destY = y; st.destZ = z; st.destO = requester->getOrientation();
+    st.destMap = requester->GetMapId();
+    st.elapsedMs = 0;
+    st.portalSpawned = false;
+    m_summons.emplace(key, st);
+    sLog.outString("TortoiseBots: Summon requested bot %s to %.1f,%.1f,%.1f map %u by %s", bot->GetName(), x, y, z, st.destMap, requester->GetName());
+    return true;
+}
+
+bool BotManager::IsSummonActive(ObjectGuid botGuid) const
+{
+    return m_summons.find(botGuid.GetCounter()) != m_summons.end();
+}
+
+// pi-lens-ignore: clang:all
+void BotManager::UpdateSummons(uint32_t diff)
+{
+    if (m_summons.empty()) return;
+    for (auto it = m_summons.begin(); it != m_summons.end(); )
+    {
+        SummonState& st = it->second;
+        st.elapsedMs += diff;
+        Player* bot = sObjectAccessor.FindPlayer(st.botGuid);
+        Player* master = sObjectAccessor.FindPlayer(st.masterGuid);
+        if (!bot || !bot->IsInWorld() || !bot->GetSession() || !bot->GetSession()->IsHeadless())
+        {
+            it = m_summons.erase(it);
+            continue;
+        }
+        if (!master || !master->IsInWorld())
+        {
+            it = m_summons.erase(it);
+            continue;
+        }
+        // Portal visual for first 3s: spawn a temp creature at dest
+        if (!st.portalSpawned)
+        {
+            st.portalSpawned = true;
+            Creature* portal = master->SummonCreature(1, st.destX, st.destY, st.destZ, st.destO, TEMPSUMMON_TIMED_DESPAWN, 3000);
+            if (portal)
+            {
+                st.portalGuid = portal->getObjectGuid();
+                portal->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
+            }
+            else
+            {
+                Creature* p2 = master->SummonCreature(20206, st.destX, st.destY, st.destZ, st.destO, TEMPSUMMON_TIMED_DESPAWN, 3000);
+                if (p2) st.portalGuid = p2->getObjectGuid();
+            }
+            sLog.outString("TortoiseBots: Summon portal spawned for bot %s at %.1f,%.1f", bot->GetName(), st.destX, st.destY);
+        }
+        if (st.elapsedMs >= 3000)
+        {
+            bool sameMap = bot->GetMapId() == st.destMap;
+            (void)sameMap;
+            if (bot->IsInCombat())
+            {
+                sLog.outString("TortoiseBots: Summon aborted bot %s still in combat", bot->GetName());
+                it = m_summons.erase(it);
+                continue;
+            }
+            if (MotionMaster* mm = bot->GetMotionMaster()) mm->Clear();
+            bot->StopMoving();
+            bot->TeleportTo(st.destMap, st.destX, st.destY, st.destZ, st.destO, 0);
+            // Ensure bot follows master immediately
+            // Use Bind + Set follow via AI
+            // For POC, use BotManager's follow helper
+            // Need to handle that TeleportTo is async (next world update), so schedule follow on next tick
+            // But we can call Bind now; the AI will resume follow after map load
+            BotRecord* rec = FindBot(st.botGuid);
+            if (rec)
+            {
+                rec->masterGuid = st.masterGuid;
+                if (PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot))
+                {
+                    Player* m = master;
+                    ai->SetMaster(m);
+                    // Force follow chat shortcut to ensure movement strategy
+                    Event ev("follow", "", m);
+                    ai->DoSpecificAction("follow chat shortcut", ev, true);
+                }
+            }
+            sLog.outString("TortoiseBots: Summon teleport bot %s to master %s", bot->GetName(), master->GetName());
+            it = m_summons.erase(it);
+            continue;
+        }
+        ++it;
+    }
+}
+
 void BotManager::UpdateBots(uint32_t diff)
 {
     for (auto& kv : m_bots)
@@ -782,6 +1133,8 @@ void BotManager::OnWorldUpdate(uint32_t diff)
     PlayerbotAI::ProcessDelayedPackets();
     sRandomBotFacade.SyncNativePlayers();
     UpdateBots(diff);
+    UpdatePullbacks(diff);
+    UpdateSummons(diff);
 
     if (m_autoTestEnabled)
         UpdateAutoTest(diff);

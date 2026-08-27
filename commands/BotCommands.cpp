@@ -467,6 +467,306 @@ static bool HandleFollow(ChatHandler* handler, char const* args)
         handler->PSendSysMessage("Bot %s could not enter follow mode; no success is reported.", name.c_str());
     return true;
 }
+// pi-lens-ignore: clang:pp_file_not_found,clang:unknown_typename
+#include "Group/Group.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Map/Map.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Entities/Unit.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Entities/Creature.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "../ai/playerbot/strategy/generic/PullStrategy.h"
+
+// pi-lens-ignore: clang:incomplete_member_access,clang:unknown_typename,clang:undeclared_var_use
+static bool HandlePullback(ChatHandler* handler, char const* args)
+{
+    (void)args;
+    Player* requester = Requester(handler);
+    if (!requester)
+    {
+        handler->PSendSysMessage("You must be in-game.");
+        return true;
+    }
+    if (!requester->IsInWorld() || requester->IsBeingTeleported())
+    {
+        handler->PSendSysMessage("You must be in world to use pullback.");
+        return true;
+    }
+    ObjectGuid sel = requester->GetSelectionGuid();
+    if (sel.IsEmpty())
+    {
+        handler->PSendSysMessage("You have no target. Select an enemy first.");
+        return true;
+    }
+    Unit* target = nullptr;
+    if (sel.IsPlayer())
+        target = sObjectAccessor.FindPlayer(sel);
+    else
+    {
+        Map* map = requester->GetMap();
+        if (map)
+        {
+            // Mangos map has GetCreature / GetUnit variants
+            // Try common APIs
+            if (Creature* c = map->GetCreature(sel))
+                target = c;
+            else if (Unit* u = map->GetUnit(sel))
+                target = u;
+        }
+        if (!target)
+        {
+            // Fallback via AI lookup using any bot AI
+            for (Player* bot : BotManager::Instance().GetAllBots())
+            {
+                if (PlayerbotAI* aiTmp = PlayerbotAIStorage::Instance().GetAI(bot))
+                {
+                    if (Unit* u = aiTmp->GetUnit(sel))
+                    {
+                        target = u;
+                        break;
+                    }
+                }
+            }
+        }
+        // Last fallback: try to find creature via sObjectAccessor global
+        if (!target)
+        {
+            // sObjectAccessor.FindCreature not always available; try player accessor for creature counter
+            // Keep as is - will report not found
+        }
+    }
+    if (!target)
+    {
+        handler->PSendSysMessage("Target not found (must be in same map and visible).");
+        return true;
+    }
+    if (!target->IsAlive())
+    {
+        handler->PSendSysMessage("Target is dead.");
+        return true;
+    }
+    if (target->IsInCombat())
+    {
+        handler->PSendSysMessage("Target is already in combat.");
+        return true;
+    }
+    if (!requester->IsHostileTo(target) && !target->IsHostileTo(requester))
+    {
+        // Allow if hostile to bot at least; but for POC require hostile to requester
+        // Keep permissive: check either
+        bool hostileToAnyBot = false;
+        for (Player* bot : BotManager::Instance().GetBotsForMaster(requester->GetObjectGuid()))
+            if (bot->IsHostileTo(target)) { hostileToAnyBot = true; break; }
+        if (!hostileToAnyBot && !requester->IsHostileTo(target))
+        {
+            handler->PSendSysMessage("Target is not hostile.");
+            return true;
+        }
+    }
+    // Find tank bot in party (assume 1 tank)
+    std::vector<Player*> candidates;
+    Group* group = requester->GetGroup();
+    if (group)
+    {
+        for (GroupReference* ref = group->GetFirstMember(); ref; ref = ref->next())
+        {
+            Player* member = ref->GetSource();
+            if (!member || member == requester) continue;
+            if (!member->IsInWorld() || member->GetMap() != requester->GetMap()) continue;
+            ObjectGuid mg = member->GetObjectGuid();
+            if (!BotManager::Instance().IsBot(mg)) continue;
+            BotRecord* rec = BotManager::Instance().FindBot(mg);
+            if (!rec || !CanControl(requester, rec)) continue;
+            if (member->IsInCombat()) continue;
+            if (BotManager::Instance().IsPullbackActive(mg)) continue;
+            if (!PlayerbotAI::IsTank(member, true)) continue;
+            candidates.push_back(member);
+        }
+    }
+    // Fallback: owned bots if not in group
+    if (candidates.empty() && !group)
+    {
+        for (Player* bot : BotManager::Instance().GetBotsForMaster(requester->GetObjectGuid()))
+        {
+            if (!bot->IsInWorld() || bot->GetMap() != requester->GetMap()) continue;
+            if (bot->IsInCombat()) continue;
+            if (BotManager::Instance().IsPullbackActive(bot->GetObjectGuid())) continue;
+            if (!PlayerbotAI::IsTank(bot, true)) continue;
+            candidates.push_back(bot);
+        }
+    }
+    if (candidates.empty())
+    {
+        handler->PSendSysMessage("No tank bot found in your party (needs a bot with tank role).");
+        return true;
+    }
+    Player* tank = candidates[0];
+    if (candidates.size() > 1)
+        handler->PSendSysMessage("Multiple tank bots found, using %s.", tank->GetName());
+    // Check tank not in combat and distance 100y from tank
+    if (tank->IsInCombat())
+    {
+        handler->PSendSysMessage("Tank %s is already in combat.", tank->GetName());
+        return true;
+    }
+    float distTankToTarget = tank->GetDistance(target);
+    if (distTankToTarget > 100.0f)
+    {
+        handler->PSendSysMessage("Target too far from tank %s (%.1fy > 100y).", tank->GetName(), distTankToTarget);
+        return true;
+    }
+    // Also check anchor map match
+    if (tank->GetMapId() != requester->GetMapId())
+    {
+        handler->PSendSysMessage("Tank and you are on different maps.");
+        return true;
+    }
+    // Decide ranged vs melee
+    bool isRanged = false;
+    float desiredDist = 14.0f;
+    PlayerbotAI* tankAI = PlayerbotAIStorage::Instance().GetAI(tank);
+    if (tankAI)
+    {
+        // Try PullStrategy path for proper weapon/range
+        if (PullStrategy* strat = PullStrategy::Get(tankAI))
+        {
+            if (strat->CanDoPullAction(target))
+            {
+                isRanged = true;
+                float r = strat->GetRange();
+                if (r > 5.0f) desiredDist = r * 0.75f;
+                else desiredDist = tankAI->GetRange("shoot") * 0.75f;
+                if (desiredDist < 10.0f) desiredDist = 25.0f;
+            }
+            else
+            {
+                // Check generic shoot availability as fallback
+                const char* tries[] = {"shoot", "shoot bow", "shoot gun", "shoot crossbow", "throw", nullptr};
+                for (int i = 0; tries[i]; ++i)
+                    if (tankAI->CanCastSpell(tries[i], target, true, nullptr, true))
+                    { isRanged = true; desiredDist = tankAI->GetRange("shoot") > 5 ? tankAI->GetRange("shoot")*0.75f : 26.0f; break; }
+            }
+        }
+        else
+        {
+            const char* tries[] = {"shoot", "shoot bow", "shoot gun", "shoot crossbow", "throw", nullptr};
+            for (int i = 0; tries[i]; ++i)
+                if (tankAI->CanCastSpell(tries[i], target, true, nullptr, true))
+                { isRanged = true; desiredDist = tankAI->GetRange("shoot") > 5 ? tankAI->GetRange("shoot")*0.75f : 26.0f; break; }
+        }
+    }
+    if (!isRanged) desiredDist = 12.0f; // body pull inside aggroDistance 22
+
+    if (!BotManager::Instance().RequestPullback(requester, tank, target, isRanged, desiredDist))
+    {
+        handler->PSendSysMessage("Pullback already active for %s or failed to queue.", tank->GetName());
+        return true;
+    }
+    handler->PSendSysMessage("Pullback: tank %s %s -> %s (%.1fy, %s) anchor %.0f,%.0f",
+        tank->GetName(), isRanged ? "shoot" : "body", target->GetName(), distTankToTarget, isRanged ? "ranged" : "melee",
+        requester->getPositionX(), requester->getPositionY());
+    return true;
+}
+
+// pi-lens-ignore: clang:incomplete_member_access,clang:unknown_typename,clang:undeclared_var_use
+static bool HandleSummon(ChatHandler* handler, char const* args)
+{
+    Player* requester = Requester(handler);
+    if (!requester)
+    {
+        handler->PSendSysMessage("You must be in-game.");
+        return true;
+    }
+    if (!requester->IsInWorld() || requester->IsBeingTeleported())
+    {
+        handler->PSendSysMessage("You must be in world and not teleporting.");
+        return true;
+    }
+    if (!requester->IsAlive())
+    {
+        handler->PSendSysMessage("You must be alive to summon.");
+        return true;
+    }
+    if (requester->IsTaxiFlying())
+    {
+        handler->PSendSysMessage("You cannot summon while on a taxi.");
+        return true;
+    }
+    std::string name = Trim(args ? args : "");
+    if (name.empty() || !normalizePlayerName(name))
+    {
+        handler->PSendSysMessage("Usage: .bot summon <online bot name> (same account only)");
+        return true;
+    }
+    Player* bot = sObjectMgr.GetPlayer(name.c_str());
+    if (!bot) bot = sObjectAccessor.FindPlayerByName(name.c_str());
+    if (!bot)
+    {
+        handler->PSendSysMessage("Bot '%s' not found or not online.", name.c_str());
+        return true;
+    }
+    BotRecord* record = BotManager::Instance().FindBot(bot->GetObjectGuid());
+    if (!record || !CanControl(requester, record))
+    {
+        handler->PSendSysMessage("You may only summon a bot on your account.");
+        return true;
+    }
+    if (!bot->GetSession() || !bot->GetSession()->IsHeadless() || !BotManager::Instance().IsBot(bot->GetObjectGuid()))
+    {
+        handler->PSendSysMessage("Character '%s' is not a module-owned Headless bot.", name.c_str());
+        return true;
+    }
+    if (!bot->IsInWorld())
+    {
+        handler->PSendSysMessage("Bot '%s' is not in world.", name.c_str());
+        return true;
+    }
+    if (!bot->IsAlive())
+    {
+        handler->PSendSysMessage("Bot '%s' is dead and cannot be summoned (resurrect first).", name.c_str());
+        return true;
+    }
+    if (bot->IsBeingTeleported())
+    {
+        handler->PSendSysMessage("Bot '%s' is already teleporting.", name.c_str());
+        return true;
+    }
+    if (bot->IsTaxiFlying())
+    {
+        handler->PSendSysMessage("Bot '%s' is on a taxi.", name.c_str());
+        return true;
+    }
+    if (bot->IsInCombat())
+    {
+        handler->PSendSysMessage("Bot '%s' is in combat and cannot be summoned.", name.c_str());
+        return true;
+    }
+    if (requester->GetMap() && bot->GetMap() && requester->GetMap() != bot->GetMap())
+    {
+        // Cross-map summon is allowed via TeleportTo, just warn
+        handler->PSendSysMessage("Bot '%s' is on a different map; summon will teleport across maps.", name.c_str());
+    }
+    if (BotManager::Instance().IsSummonActive(bot->GetObjectGuid()))
+    {
+        handler->PSendSysMessage("Bot '%s' is already being summoned.", name.c_str());
+        return true;
+    }
+    if (BotManager::Instance().IsPullbackActive(bot->GetObjectGuid()))
+    {
+        handler->PSendSysMessage("Bot '%s' is currently pulling and cannot be summoned.", name.c_str());
+        return true;
+    }
+    // Optional: check instance restrictions - for POC allow everywhere, but block if in BG/Arena?
+    // Allow summon in dungeons/raids; if bot is in a different instance, TeleportTo will move it.
+    if (!BotManager::Instance().RequestSummon(requester, bot))
+    {
+        handler->PSendSysMessage("Failed to summon bot '%s' (already pending or error).", name.c_str());
+        return true;
+    }
+    handler->PSendSysMessage("Summoning %s to your location (5y) via portal (3s) and will follow.", name.c_str());
+    return true;
+}
 
 // pi-lens-ignore: clang:incomplete_member_access,clang:unknown_typename
 bool HandleChatCommand(ChatHandler* handler, char const* args)
@@ -478,7 +778,7 @@ bool HandleChatCommand(ChatHandler* handler, char const* args)
     while (*args == ' ' || *args == '\t') ++args;
     if (!*args)
     {
-        handler->PSendSysMessage("Usage: .bot add/remove/follow/invite/uninvite/stay/list/stats/command");
+        handler->PSendSysMessage("Usage: .bot add/remove/follow/invite/uninvite/stay/list/stats/pullback/summon/command");
         return true;
     }
 
@@ -512,11 +812,15 @@ bool HandleChatCommand(ChatHandler* handler, char const* args)
         return HandleList(handler);
     if (cmd == "stats")
         return HandleStats(handler);
+    if (cmd == "pullback" || cmd == "pull-back")
+        return HandlePullback(handler, subArgs);
+    if (cmd == "summon")
+        return HandleSummon(handler, subArgs);
     if (cmd == "command")
         return HandleMatureCommand(handler, subArgs);
     if (cmd == "help" || cmd == "h")
     {
-        handler->PSendSysMessage("Bot commands: add/remove/follow/invite/uninvite/stay/list/stats/command");
+        handler->PSendSysMessage("Bot commands: add/remove/follow/invite/uninvite/stay/list/stats/pullback/summon/command");
         return true;
     }
 

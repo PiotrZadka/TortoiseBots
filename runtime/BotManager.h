@@ -119,26 +119,50 @@ public:
     void SetAutoTestEnabled(bool enable, uint32_t accountId = 0, ObjectGuid guid = ObjectGuid());
     bool IsAutoTestEnabled() const { return m_autoTestEnabled; }
 
-    // Strict runtime packet journey: Headless outgoing, Network-master
-    // outgoing where applicable, and automatic mature invite acceptance.
-    // Real Network incoming delivery remains a manual-client gate.
-    void SetPacketBridgeTestEnabled(bool enable, uint32_t accountId = 0,
-        ObjectGuid masterGuid = ObjectGuid(), ObjectGuid botGuid = ObjectGuid());
+    // Pullback POC: tank runs toward target to shoot/body-aggro then returns to master's anchor and holds.
+    bool RequestPullback(Player* requester, Player* tank, Unit* target, bool isRanged, float desiredDist);
+    void CancelPullback(ObjectGuid tankGuid);
+    bool IsPullbackActive(ObjectGuid tankGuid) const;
 
-private:
-    BotManager() = default;
-    ~BotManager() = default;
+    // Summon POC: portal 3s at 5y then teleport bot and follow.
+    bool RequestSummon(Player* requester, Player* bot);
+    bool IsSummonActive(ObjectGuid botGuid) const;
+
+    // Strict runtime packet journey: Headless outgoing, Network-master
+
+    void UpdatePullbacks(uint32_t diff);
+    void UpdateSummons(uint32_t diff);
 
     bool IsLiveHeadlessBot(BotEntry const& entry, Player* player) const;
-    void FinishAutoTest(bool passed);
-    void UpdateAutoTest(uint32_t diff);
-    void UpdatePacketBridgeTest(uint32_t diff);
-    void UpdateBots(uint32_t diff);
-    void DetachOwnedBots(Player* master);
-    void RebindOwnedBots(Player* master);
 
-    std::unordered_map<uint32_t, BotEntry> m_bots; // key = guid counter
-    bool m_autoTestEnabled = false;
+    struct PullbackState
+    {
+        ObjectGuid tankGuid;
+        ObjectGuid masterGuid;
+        ObjectGuid targetGuid;
+        uint32 targetEntry = 0;
+        float anchorX = 0, anchorY = 0, anchorZ = 0;
+        uint32 anchorMap = 0;
+        float desiredDist = 0;
+        bool isRanged = false;
+        uint32 elapsedMs = 0;
+        uint32 phaseElapsedMs = 0;
+        enum Phase { Approaching, Pulling, Returning, Holding } phase = Approaching;
+    };
+    std::unordered_map<uint32_t, PullbackState> m_pullbacks;
+
+    struct SummonState
+    {
+        ObjectGuid botGuid;
+        ObjectGuid masterGuid;
+        float destX = 0, destY = 0, destZ = 0, destO = 0;
+        uint32 destMap = 0;
+        uint32 elapsedMs = 0;
+        bool portalSpawned = false;
+        ObjectGuid portalGuid;
+    };
+    std::unordered_map<uint32_t, SummonState> m_summons;
+
     uint32_t m_autoTestAccount = 0;
 // pi-lens-ignore: clang:unknown_typename
     ObjectGuid m_autoTestGuid;
