@@ -64,8 +64,8 @@ Freeze: no more broad donor cleanup.
 
 ```text
 TortoiseBots: f379a17
-Core #411:   3d32a48
-Core #416:   a615d7c (rebased on Core #411)
+Core #411:   1e79949
+Core #416:   58bcb1c (rebased on Core #411)
 ```
 
 ## 7. Manual gameplay phase
