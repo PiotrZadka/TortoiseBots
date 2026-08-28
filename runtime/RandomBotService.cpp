@@ -1,6 +1,7 @@
 #include "RandomBotService.h"
 
 #include "BotManager.h"
+#include "../host/BotSessionAdapter.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
@@ -856,11 +857,10 @@ void RandomBotService::MaintainOnlinePool()
 
             if (Player* player = sObjectAccessor.FindPlayer(pinnedCandidate->characterGuid))
             {
-                if (!player->GetSession() || !player->GetSession()->IsHeadless())
+                if (!player->GetSession() || player->GetSession()->HasNetworkTransport())
                     continue;
             }
-            if (sWorld.FindHeadlessSession(pinnedCandidate->characterGuid) ||
-                sWorld.HasPendingHeadlessSession(pinnedCandidate->characterGuid))
+            if (BotSessionAdapter::GetHeadlessSessionState(pinnedCandidate->characterGuid) != HeadlessSessionState::NotFound)
                 continue;
 
             if (BotManager::Instance().AddRandomBot(pinnedCandidate->accountId, pinnedCandidate->characterGuid))
@@ -888,11 +888,10 @@ void RandomBotService::MaintainOnlinePool()
             // A network session owns the character; native random control may
             // never steal it. Headless sessions are likewise left to the
             // existing BotManager record/reclaim path.
-            if (!player->GetSession() || !player->GetSession()->IsHeadless())
+            if (!player->GetSession() || player->GetSession()->HasNetworkTransport())
                 continue;
         }
-        if (sWorld.FindHeadlessSession(candidate.characterGuid) ||
-            sWorld.HasPendingHeadlessSession(candidate.characterGuid))
+        if (BotSessionAdapter::GetHeadlessSessionState(candidate.characterGuid) != HeadlessSessionState::NotFound)
             continue;
 
         if (BotManager::Instance().AddRandomBot(candidate.accountId, candidate.characterGuid))

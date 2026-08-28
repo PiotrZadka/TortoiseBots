@@ -73,12 +73,12 @@ public:
     void OnPlayerLogout(Player* player);
     void ReleaseToClient(Player* player);
 
-    // Manual control for testing
+    // Manual control for testing — bool success; core owns Headless session
 // pi-lens-ignore: clang:unknown_typename
-    WorldSession* AddBot(uint32_t accountId, ObjectGuid guid, ObjectGuid masterGuid = ObjectGuid());
-    WorldSession* AddRandomBot(uint32_t accountId, ObjectGuid guid);
+    bool AddBot(uint32_t accountId, ObjectGuid guid, ObjectGuid masterGuid = ObjectGuid());
+    bool AddRandomBot(uint32_t accountId, ObjectGuid guid);
 // pi-lens-ignore: clang:unknown_typename
-    WorldSession* AddBotWithMaster(uint32_t accountId, ObjectGuid guid, ObjectGuid masterGuid);
+    bool AddBotWithMaster(uint32_t accountId, ObjectGuid guid, ObjectGuid masterGuid);
 // pi-lens-ignore: clang:unknown_typename
     bool RemoveBot(ObjectGuid guid, bool save = true);
 // pi-lens-ignore: clang:unknown_typename

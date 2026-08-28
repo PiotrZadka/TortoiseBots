@@ -2,6 +2,7 @@
 #include "BotCommands.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../runtime/BotManager.h"
+#include "../host/BotSessionAdapter.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../runtime/PlayerbotAIStorage.h"
 // pi-lens-ignore: clang:pp_file_not_found
@@ -70,7 +71,7 @@ public:
     Player* GetPlayer() const { return nullptr; }
     int GetSecurity() const { return 0; }
     uint32 GetAccountId() const { return 0; }
-    bool IsHeadless() const { return false; }
+    bool HasNetworkTransport() const { return false; }
     void HandleGroupInviteOpcode(WorldPacket&) {}
     void HandleGroupUninviteOpcode(WorldPacket&) {}
 };
@@ -123,8 +124,8 @@ static bool ResolveOwnedBot(ChatHandler* handler, char const* args, Player*& bot
     if (!CanControl(Requester(handler), record))
         return false;
 
-    return bot->GetSession() && bot->GetSession()->IsHeadless() &&
-        BotManager::Instance().IsBot(bot->GetObjectGuid());
+    return BotManager::Instance().IsBot(bot->GetObjectGuid()) &&
+        BotSessionAdapter::GetHeadlessSessionState(bot->GetObjectGuid()) == HeadlessSessionState::Active;
 }
 
 static bool HandleList(ChatHandler* handler)
@@ -363,8 +364,8 @@ static bool HandleAdd(ChatHandler* handler, char const* args)
         return true;
     }
 
-    ::WorldSession* sess = BotManager::Instance().AddBotWithMaster(accountId, guid, masterGuid);
-    if (sess)
+    bool ok = BotManager::Instance().AddBotWithMaster(accountId, guid, masterGuid);
+    if (ok)
         handler->PSendSysMessage("Bot %s queued for login; it will follow %s after entering the world.",
             name.c_str(), requester->GetName());
     else
@@ -712,7 +713,8 @@ static bool HandleSummon(ChatHandler* handler, char const* args)
         handler->PSendSysMessage("You may only summon a bot on your account.");
         return true;
     }
-    if (!bot->GetSession() || !bot->GetSession()->IsHeadless() || !BotManager::Instance().IsBot(bot->GetObjectGuid()))
+    if (!BotManager::Instance().IsBot(bot->GetObjectGuid()) ||
+        BotSessionAdapter::GetHeadlessSessionState(bot->GetObjectGuid()) != HeadlessSessionState::Active)
     {
         handler->PSendSysMessage("Character '%s' is not a module-owned Headless bot.", name.c_str());
         return true;
