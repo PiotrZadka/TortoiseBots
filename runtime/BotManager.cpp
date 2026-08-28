@@ -1066,7 +1066,7 @@ void BotManager::OnWorldUpdate(uint32_t diff)
         }
 
         // No Player object; check core state.
-        if (rec.lifecycle == BotLifecycle::PendingAdd || rec.lifecycle == BotLifecycle::PendingLogin)
+        if (rec.lifecycle == BotLifecycle::PendingAdd)
         {
             if (state == HeadlessSessionState::NotFound)
             {
@@ -1292,7 +1292,7 @@ void BotManager::UpdateAutoTest(uint32_t diff)
                         std::string sessInfo = (st != HeadlessSessionState::NotFound) ? "headless" : "<null>";
                         bool loading = (st == HeadlessSessionState::Loading || st == HeadlessSessionState::Pending);
                         std::string playerInfo = p ? (p->IsInWorld() ? "IsInWorld" : "not InWorld") : "FindPlayer null";
-                        sLog.outString("TortoiseBots: AutoTest LoggingIn tick %u sess %s state %u acct %u loading %u player %s pending %u", m_autoTestTicks, sessInfo.c_str(), static_cast<uint32>(st), rec->accountId, loading, playerInfo.c_str(), rec->lifecycle == BotLifecycle::PendingLogin);
+                        sLog.outString("TortoiseBots: AutoTest LoggingIn tick %u sess %s state %u acct %u loading %u player %s pending %u", m_autoTestTicks, sessInfo.c_str(), static_cast<uint32>(st), rec->accountId, loading, playerInfo.c_str(), st == HeadlessSessionState::Pending);
                         if (st != HeadlessSessionState::NotFound && p && p->GetSession())
                             sLog.outString("TortoiseBots:   sess details network %u headless %u", p->GetSession()->HasNetworkTransport(), p->GetSession()->IsHeadless());
                     }
@@ -1399,7 +1399,7 @@ void BotManager::UpdateAutoTest(uint32_t diff)
                 {
                     ::Player* p = sObjectAccessor.FindPlayer(m_autoTestGuid);
                     HeadlessSessionState st = BotSessionAdapter::GetHeadlessSessionState(rec->characterGuid);
-                    sLog.outString("TortoiseBots: AutoTest Relogging tick %u state %u pending %u player %s", m_autoTestTicks, static_cast<uint32>(st), rec->lifecycle == BotLifecycle::PendingLogin, p ? (p->IsInWorld() ? "IsInWorld" : "notInWorld") : "null");
+                    sLog.outString("TortoiseBots: AutoTest Relogging tick %u state %u pending %u player %s", m_autoTestTicks, static_cast<uint32>(st), st == HeadlessSessionState::Pending, p ? (p->IsInWorld() ? "IsInWorld" : "notInWorld") : "null");
                 }
             }
             else if (m_autoTestTicks > 400)

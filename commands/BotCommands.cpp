@@ -432,7 +432,7 @@ static bool HandleRemove(ChatHandler* handler, char const* args)
         return true;
     }
     if (BotManager::Instance().RemoveBot(guid, true))
-        handler->PSendSysMessage("Bot %s removed.", name.c_str());
+        handler->PSendSysMessage("Bot %s removal requested; core cleanup completes at NotFound.", name.c_str());
     else
         handler->PSendSysMessage("Bot %s not found or not removable.", name.c_str());
     return true;

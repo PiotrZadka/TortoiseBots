@@ -33,7 +33,6 @@ namespace TortoiseBots {
 enum class BotLifecycle
 {
     PendingAdd,
-    PendingLogin,
     InWorld,
     Removing,
 };
