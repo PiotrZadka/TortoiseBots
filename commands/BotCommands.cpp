@@ -105,6 +105,11 @@ static bool CanControl(Player* requester, BotRecord const* record)
     return requester->GetSession()->GetSecurity() >= SEC_GAMEMASTER ||
         record->accountId == requester->GetSession()->GetAccountId();
 }
+static bool IsLiveHeadlessState(ObjectGuid guid)
+{
+    HeadlessSessionState state = BotSessionAdapter::GetHeadlessSessionState(guid);
+    return state == HeadlessSessionState::Active || state == HeadlessSessionState::Loading;
+}
 
 static bool ResolveOwnedBot(ChatHandler* handler, char const* args, Player*& bot, BotRecord*& record, std::string& name)
 {
@@ -125,7 +130,7 @@ static bool ResolveOwnedBot(ChatHandler* handler, char const* args, Player*& bot
         return false;
 
     return BotManager::Instance().IsBot(bot->GetObjectGuid()) &&
-        BotSessionAdapter::GetHeadlessSessionState(bot->GetObjectGuid()) == HeadlessSessionState::Active;
+        IsLiveHeadlessState(bot->GetObjectGuid());
 }
 
 static bool HandleList(ChatHandler* handler)
@@ -417,7 +422,7 @@ static bool HandleRemove(ChatHandler* handler, char const* args)
         return true;
     }
     if (BotManager::Instance().RemoveBot(guid, true))
-        handler->PSendSysMessage("Removal requested for bot %s; Headless cleanup completes asynchronously.", name.c_str());
+        handler->PSendSysMessage("Bot %s removed.", name.c_str());
     else
         handler->PSendSysMessage("Bot %s not found or not removable.", name.c_str());
     return true;
@@ -714,7 +719,7 @@ static bool HandleSummon(ChatHandler* handler, char const* args)
         return true;
     }
     if (!BotManager::Instance().IsBot(bot->GetObjectGuid()) ||
-        BotSessionAdapter::GetHeadlessSessionState(bot->GetObjectGuid()) != HeadlessSessionState::Active)
+        !IsLiveHeadlessState(bot->GetObjectGuid()))
     {
         handler->PSendSysMessage("Character '%s' is not a module-owned Headless bot.", name.c_str());
         return true;
