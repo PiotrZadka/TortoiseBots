@@ -471,11 +471,11 @@ static bool HandleFollow(ChatHandler* handler, char const* args)
 // pi-lens-ignore: clang:pp_file_not_found,clang:unknown_typename
 #include "Group/Group.h"
 // pi-lens-ignore: clang:pp_file_not_found
-#include "Map/Map.h"
+#include "Maps/Map.h"
 // pi-lens-ignore: clang:pp_file_not_found
-#include "Entities/Unit.h"
+#include "Objects/Unit.h"
 // pi-lens-ignore: clang:pp_file_not_found
-#include "Entities/Creature.h"
+#include "Objects/Creature.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../ai/playerbot/strategy/generic/PullStrategy.h"
 
