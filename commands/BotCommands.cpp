@@ -24,6 +24,16 @@
 #include "Log.h"
 #include <cstring>
 #include <string>
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Group/Group.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Maps/Map.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Objects/Unit.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "Objects/Creature.h"
+// pi-lens-ignore: clang:pp_file_not_found
+#include "../ai/playerbot/strategy/generic/PullStrategy.h"
 // Lens fallback stubs — core headers absent in static analysis. Real build uses
 // the mangosd headers via -I src/game. Guards use the same macros as the
 // real headers so the stubs are never active in a real build.
@@ -473,16 +483,7 @@ static bool HandleFollow(ChatHandler* handler, char const* args)
         handler->PSendSysMessage("Bot %s could not enter follow mode; no success is reported.", name.c_str());
     return true;
 }
-// pi-lens-ignore: clang:pp_file_not_found,clang:unknown_typename
-#include "Group/Group.h"
-// pi-lens-ignore: clang:pp_file_not_found
-#include "Maps/Map.h"
-// pi-lens-ignore: clang:pp_file_not_found
-#include "Objects/Unit.h"
-// pi-lens-ignore: clang:pp_file_not_found
-#include "Objects/Creature.h"
-// pi-lens-ignore: clang:pp_file_not_found
-#include "../ai/playerbot/strategy/generic/PullStrategy.h"
+
 
 // pi-lens-ignore: clang:incomplete_member_access,clang:unknown_typename,clang:undeclared_var_use
 static bool HandlePullback(ChatHandler* handler, char const* args)
