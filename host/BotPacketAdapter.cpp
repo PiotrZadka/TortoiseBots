@@ -51,7 +51,7 @@ bool BotPacketAdapter::CanPacketSend(WorldSession* session, WorldPacket const& p
 
 bool BotPacketAdapter::CanPacketReceive(WorldSession* session, WorldPacket const& packet)
 {
-    if (!session || !session->HasNetworkTransport())
+    if (!session || session->IsHeadless())
         return true;
 
     DispatchMasterIncoming(session, packet);
@@ -60,7 +60,7 @@ bool BotPacketAdapter::CanPacketReceive(WorldSession* session, WorldPacket const
 
 void BotPacketAdapter::DispatchMasterIncoming(WorldSession* session, WorldPacket const& packet)
 {
-    if (!session || !session->HasNetworkTransport())
+    if (!session || session->IsHeadless())
         return;
 
     Player* master = session->GetPlayer();
