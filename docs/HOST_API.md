@@ -30,7 +30,7 @@ The supported local host boundary is validated against:
 
 ```text
 Pinned Tortoise core checkpoint:     1e7994934b864558e257dd1f375fbbdbbcebe95e (local PR411 refactor)
-TortoiseBots tested code checkpoint: f379a179fcda846a5a0ec1e794b092f741ab2074
+TortoiseBots tested code checkpoint: 73ce129c2a1bbf7efc5d62db8ddc4e02dbb35f08
 ```
 
 Validated local core checkpoint:
@@ -51,7 +51,7 @@ Compile-verified integration snapshot:
 
 ```text
 Core:         58bcb1cf8ea7110561120ed47c3c9203f9338c5b
-TortoiseBots: f379a179fcda846a5a0ec1e794b092f741ab2074
+TortoiseBots: 73ce129c2a1bbf7efc5d62db8ddc4e02dbb35f08
 ```
 
 The exact tested core/module pair must be recorded whenever the core changes;
