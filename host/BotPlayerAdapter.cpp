@@ -29,7 +29,7 @@ void BotPlayerAdapter::OnBeforeLogout(Player* player)
 void BotPlayerAdapter::OnLogout(Player* player)
 {
     BotManager::Instance().OnPlayerLogout(player);
-    if (player && player->GetSession() && player->GetSession()->HasNetworkTransport())
+    if (player && player->GetSession() && !player->GetSession()->IsHeadless())
         RandomBotService::Instance().OnHumanLogout();
 }
 

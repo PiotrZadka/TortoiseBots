@@ -233,7 +233,7 @@ void BotManager::OnPlayerBeforeLogout(::Player* player)
         return;
 
     ::WorldSession* session = player->GetSession();
-    if (!session || session->HasNetworkTransport())
+    if (!session || !session->IsHeadless())
         DetachOwnedBots(player);
 
     auto it = m_bots.find(player->GetObjectGuid().GetCounter());

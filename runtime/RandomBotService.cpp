@@ -857,7 +857,7 @@ void RandomBotService::MaintainOnlinePool()
 
             if (Player* player = sObjectAccessor.FindPlayer(pinnedCandidate->characterGuid))
             {
-                if (!player->GetSession() || player->GetSession()->HasNetworkTransport())
+                if (!player->GetSession() || !player->GetSession()->IsHeadless())
                     continue;
             }
             if (BotSessionAdapter::GetHeadlessSessionState(pinnedCandidate->characterGuid) != HeadlessSessionState::NotFound)
@@ -888,7 +888,7 @@ void RandomBotService::MaintainOnlinePool()
             // A network session owns the character; native random control may
             // never steal it. Headless sessions are likewise left to the
             // existing BotManager record/reclaim path.
-            if (!player->GetSession() || player->GetSession()->HasNetworkTransport())
+            if (!player->GetSession() || !player->GetSession()->IsHeadless())
                 continue;
         }
         if (BotSessionAdapter::GetHeadlessSessionState(candidate.characterGuid) != HeadlessSessionState::NotFound)
