@@ -650,6 +650,11 @@ static bool HandlePullback(ChatHandler* handler, char const* args)
         handler->PSendSysMessage("You must be in world to use pullback.");
         return true;
     }
+    if (!requester->IsAlive() || requester->IsTaxiFlying())
+    {
+        handler->PSendSysMessage("You must be alive and not on a taxi to use pullback.");
+        return true;
+    }
     ObjectGuid sel = requester->GetSelectionGuid();
     if (sel.IsEmpty())
     {
@@ -730,7 +735,7 @@ static bool HandlePullback(ChatHandler* handler, char const* args)
         {
             Player* member = ref->GetSource();
             if (!member || member == requester) continue;
-            if (!member->IsInWorld() || member->GetMap() != requester->GetMap()) continue;
+            if (!member->IsInWorld() || !member->IsAlive() || member->GetMap() != requester->GetMap()) continue;
             ObjectGuid mg = member->GetObjectGuid();
             if (!BotManager::Instance().IsBot(mg)) continue;
             BotRecord* rec = BotManager::Instance().FindBot(mg);
@@ -746,7 +751,7 @@ static bool HandlePullback(ChatHandler* handler, char const* args)
     {
         for (Player* bot : BotManager::Instance().GetBotsForMaster(requester->GetObjectGuid()))
         {
-            if (!bot->IsInWorld() || bot->GetMap() != requester->GetMap()) continue;
+            if (!bot->IsInWorld() || !bot->IsAlive() || bot->GetMap() != requester->GetMap()) continue;
             if (bot->IsInCombat()) continue;
             if (PlayerConvenience::Instance().IsBusy(bot->GetObjectGuid())) continue;
             if (!PlayerbotAI::IsTank(bot, true)) continue;

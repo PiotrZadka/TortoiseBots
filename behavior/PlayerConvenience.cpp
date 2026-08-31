@@ -41,8 +41,12 @@ bool PlayerConvenience::RequestPullback(Player* requester, Player* tank, Unit* t
 {
     if (!requester || !tank || !target)
         return false;
-    if (!tank->IsInWorld() || !tank->GetSession() || !tank->GetSession()->IsHeadless() ||
-        !target->IsInWorld() || tank->GetMap() != target->GetMap() || requester->GetMap() != tank->GetMap())
+    if (!requester->IsInWorld() || !requester->IsAlive() || requester->IsBeingTeleported() ||
+        requester->IsTaxiFlying() || !tank->IsInWorld() || !tank->IsAlive() ||
+        tank->IsBeingTeleported() || tank->IsTaxiFlying() || tank->IsInCombat() ||
+        !tank->GetSession() || !tank->GetSession()->IsHeadless() || !target->IsInWorld() ||
+        !target->IsAlive() || target->IsInCombat() || tank->GetMap() != target->GetMap() ||
+        requester->GetMap() != tank->GetMap())
         return false;
 
     uint32 key = tank->GetObjectGuid().GetCounter();
@@ -70,7 +74,8 @@ bool PlayerConvenience::RequestPullback(Player* requester, Player* tank, Unit* t
 
 bool PlayerConvenience::RequestSummon(Player* requester, Player* bot)
 {
-    if (!requester || !bot || !requester->IsInWorld() || requester->IsBeingTeleported())
+    if (!requester || !bot || !requester->IsInWorld() || !requester->IsAlive() ||
+        requester->IsBeingTeleported() || requester->IsTaxiFlying())
         return false;
     if (!bot->IsInWorld() || !bot->GetSession() || !bot->GetSession()->IsHeadless() ||
         bot->IsBeingTeleported() || !bot->IsAlive() || bot->IsInCombat() || bot->IsTaxiFlying())
@@ -125,7 +130,8 @@ void PlayerConvenience::UpdatePullbacks(uint32 diff)
         }
 
         Player* tank = sObjectAccessor.FindPlayer(state.tankGuid);
-        if (!tank || !tank->IsInWorld() || !tank->GetSession() || !tank->GetSession()->IsHeadless())
+        if (!tank || !tank->IsInWorld() || !tank->IsAlive() || tank->IsBeingTeleported() ||
+            tank->IsTaxiFlying() || !tank->GetSession() || !tank->GetSession()->IsHeadless())
         {
             it = m_pullbacks.erase(it);
             continue;
@@ -134,7 +140,8 @@ void PlayerConvenience::UpdatePullbacks(uint32 diff)
         Player* master = sObjectAccessor.FindPlayer(state.masterGuid);
         BotRecord const* record = BotManager::Instance().FindBot(state.tankGuid);
         if (!master || !master->IsInWorld() || !master->IsAlive() || master->IsBeingTeleported() ||
-            master->GetMapId() != state.anchorMap ||
+            master->IsTaxiFlying() || master->GetMapId() != state.anchorMap ||
+            master->GetMap() != tank->GetMap() ||
             !record || record->masterGuid != state.masterGuid)
         {
             sLog.outString("TortoiseBots: Pullback cancelled for tank %s because its master is no longer eligible",
@@ -349,6 +356,7 @@ void PlayerConvenience::UpdateSummons(uint32 diff)
         Player* master = sObjectAccessor.FindPlayer(state.masterGuid);
         if (!bot || !bot->GetSession() || !bot->GetSession()->IsHeadless() ||
             !master || !master->IsInWorld() || !master->IsAlive() || master->IsBeingTeleported() ||
+            master->IsTaxiFlying() ||
             master->GetMapId() != state.destMap)
         {
             it = m_summons.erase(it);
@@ -379,6 +387,14 @@ void PlayerConvenience::UpdateSummons(uint32 diff)
                 continue;
             }
 
+            if (!bot->IsAlive() || bot->IsTaxiFlying() || bot->IsInCombat())
+            {
+                sLog.outString("TortoiseBots: Summon cancelled bot %s became incompatible before follow restore",
+                    bot->GetName());
+                it = m_summons.erase(it);
+                continue;
+            }
+
             if (bot->GetMapId() != state.destMap || !BotManager::Instance().SetBotFollow(state.botGuid, state.masterGuid))
             {
                 sLog.outError("TortoiseBots: Summon follow restore failed for bot %s",
@@ -395,6 +411,14 @@ void PlayerConvenience::UpdateSummons(uint32 diff)
 
         if (!bot->IsInWorld())
         {
+            it = m_summons.erase(it);
+            continue;
+        }
+
+        if (!bot->IsAlive() || bot->IsBeingTeleported() || bot->IsTaxiFlying() || bot->IsInCombat())
+        {
+            sLog.outString("TortoiseBots: Summon cancelled bot %s became incompatible before teleport",
+                bot->GetName());
             it = m_summons.erase(it);
             continue;
         }
@@ -425,17 +449,6 @@ void PlayerConvenience::UpdateSummons(uint32 diff)
         if (bot->IsInCombat())
         {
             sLog.outString("TortoiseBots: Summon aborted bot %s still in combat", bot->GetName());
-            it = m_summons.erase(it);
-            continue;
-        }
-
-        // Bind through the lifecycle owner before teleporting. Restore the
-        // mature follow action only after the asynchronous map transition has
-        // completed; this behaviour never edits BotRecord or the AI pointer.
-        if (!BotManager::Instance().BindBotMaster(state.botGuid, state.masterGuid))
-        {
-            sLog.outError("TortoiseBots: Summon aborted for bot %s because durable master binding failed",
-                state.botGuid.GetString().c_str());
             it = m_summons.erase(it);
             continue;
         }

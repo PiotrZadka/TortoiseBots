@@ -60,6 +60,11 @@ if rg -n 'RequestPullback|RequestSummon|UpdatePullbacks|UpdateSummons|m_pullback
     runtime/BotManager.cpp runtime/BotManager.h; then
     fail "player convenience behavior leaked into BotManager lifecycle ownership"
 fi
+if rg -n 'BindBotMaster|record->masterGuid[[:space:]]*=' behavior/PlayerConvenience.cpp; then
+    fail "player convenience mutates durable master binding directly"
+fi
+grep -q 'SetBotFollow' behavior/PlayerConvenience.cpp \
+    || fail "summon completion no longer restores follow through the mature path"
 
 # The core's Headless manager owns construction, login dispatch, pending state,
 # reclaim and destruction. The module must use only the generic World façade.
