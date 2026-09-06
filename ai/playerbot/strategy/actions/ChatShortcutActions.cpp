@@ -85,17 +85,13 @@ bool FollowChatShortcutAction::Execute(Event& event)
     Unit* followTarget = AI_VALUE(Unit*, "follow target");
     std::string targetName = followTarget ? followTarget->GetName() : (requester ? requester->GetName() : "");
 
-    if (sServerFacade.IsInCombat(bot))
+    WorldLocation loc = formation->GetLocation();
+    if (!Formation::IsNullLocation(loc) && loc.mapId != -1)
     {
-        WorldLocation loc = formation->GetLocation();
-        if (Formation::IsNullLocation(loc) || loc.mapId == -1)
-            return false;
-
-        if (MoveTo(loc.mapId, loc.x, loc.y, loc.z, false, false))
+        float distance = sServerFacade.getDistance2d(bot, loc.x, loc.y);
+        if (sServerFacade.IsDistanceGreaterThan(distance, formation->GetMaxDistance()))
         {
-            if (!ai->HasStrategy("silent", BotState::BOT_STATE_NON_COMBAT) && !targetName.empty())
-                bot->TextEmote("is following " + targetName + ".");
-            return true;
+            MoveTo(loc.mapId, loc.x, loc.y, loc.z, false, false);
         }
     }
 
