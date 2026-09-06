@@ -146,14 +146,21 @@ namespace ai
             float x = followTarget->getPositionX() + cos(angle) * range;
             float y = followTarget->getPositionY() + sin(angle) * range;
             float z = followTarget->getPositionZ();
-            float ground = followTarget->GetMap()->GetHeight(x, y, z);
-            //if (ground <= INVALID_HEIGHT)
-            //    return Formation::NullLocation;
-
-            // prevent going into terrain
+            // Prevent going into walls: check horizontal LoS at waist height to avoid hitting ground/slopes
             float ox, oy, oz;
             followTarget->GetPosition(ox, oy, oz);
-            followTarget->GetMap()->GetLosHitPosition(ox, oy, oz + bot->GetCollisionHeight(), x, y, z, -0.5f);
+            float checkHeight = bot->GetCollisionHeight() * 0.5f;
+            float checkZ = oz + checkHeight;
+            float hitX = x, hitY = y, hitZ = checkZ;
+            if (followTarget->GetMap()->GetLosHitPosition(ox, oy, checkZ, hitX, hitY, hitZ, -0.5f))
+            {
+                x = hitX;
+                y = hitY;
+            }
+
+            float ground = followTarget->GetMap()->GetHeight(x, y, z);
+            if (ground <= INVALID_HEIGHT)
+                return Formation::NullLocation;
 
             if (!bot->IsFlying() && !bot->IsSwimming())
             {

@@ -980,7 +980,7 @@ std::vector<WorldPosition> WorldPosition::getPathStepFrom(const WorldPosition& s
         }
     }
 
-    if ((!forceNormalPath && type == PATHFIND_INCOMPLETE) || type == PATHFIND_NORMAL)
+    if ((!forceNormalPath && (type & PATHFIND_INCOMPLETE)) || (type & PATHFIND_NORMAL))
         return retvec;
 
     return {};
@@ -1085,6 +1085,9 @@ std::vector<WorldPosition> WorldPosition::getPathFromPath(const std::vector<Worl
         //Continue pathfinding.
         currentPos = subPath.back();
     }
+
+    if (fullPath.size() <= startPath.size())
+        return {};
 
     return fullPath;
 }

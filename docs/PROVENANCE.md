@@ -1053,3 +1053,39 @@ generic value for every healer class.
 configured free-alt/always-online character is still an owned character and
 therefore remains protected from automatic talent mutation; only the random
 population identity opts into autonomous talent behavior.
+
+## Party formation follow movement and spline dispatch — 2026-09-06
+
+Feature: Party formation movement and follow-action execution fix (`FollowAction::Execute`, `FollowAction::isUseful`, `FollowChatShortcutAction::Execute`, `FollowMasterStrategy::OnStrategyRemoved`).
+
+Source repository: `playerbots-references/mod-playerbots` (`src/Ai/Base/Actions/FollowActions.cpp`, `src/Ai/Base/Strategy/FollowMasterStrategy.cpp`)
+
+Source commit: `mod-playerbots@5397110cba484a9b7209bc9f632652e9d4bd6a70`
+
+Source files: `ai/playerbot/strategy/actions/FollowActions.cpp`, `ai/playerbot/strategy/actions/ChatShortcutActions.cpp`, `ai/playerbot/strategy/generic/FollowMasterStrategy.cpp`, `ai/playerbot/strategy/actions/MovementActions.cpp`
+
+Copied / ported / independently reimplemented:
+- Ported `mod-playerbots` formation follow behavior: `FollowAction::Execute()` checks `formation->GetLocation()` and moves bots directly to their calculated 3D formation coordinates using `MoveTo(loc.mapId, loc.x, loc.y, loc.z)`, preserving geometric formation slots and utilizing pathfinding splines without `MoveFollow` clamping.
+- Fixed `MovementAction::DispatchMovement()`: removed conflicting and malformed raw `MoveSplineInit` call that passed single-vertex paths (`path.size() == 1`), which failed `MoveSplineInitArgs::Validate` on every tick and aborted motion. Movement dispatch now calls `MotionMaster::MovePoint(0, x, y, z, moveOptions)` with `MOVE_PATHFINDING`, delegating path calculation, splines, and movement state cleanly to core's `PointMovementGenerator<Player>`.
+- Reimplemented `FollowAction::isUseful()`: removed the broken `follow jump` short-circuit that evaluated to true unconditionally on every tick even while standing in formation; added non-melee spellcasting check; and verified 2D distance to `formation->GetLocation()` against `formation->GetMaxDistance()`. When bots are within dead-zone distance of their formation slot, `isUseful()` cleanly returns false, allowing bots to rest in formation without continuous movement-generator clear thrashing.
+- In `FollowChatShortcutAction::Execute()`, dispatch immediate `MoveTo` towards `formation->GetLocation()` if out of formation.
+- In `StopFollowAction::isUseful()` and `FollowMasterStrategy::OnStrategyRemoved()`, check `sServerFacade.isMoving(bot)` so point movement is cleanly halted when follow ends.
+
+Reason: Previously, `FollowAction` invoked `mm.MoveFollow()`, which continuously cleared the motion master every 100ms tick, failed to move bots to their calculated 3D formation slot (`formation->GetLocation()`), and in Penqle core clamped the destination to the bot's own location when the master stopped moving (`pathLength == 0`). Furthermore, `FollowAction::isUseful()` contained a broken `follow jump` short-circuit that evaluated to true on every tick even while standing in formation. Finally, `DispatchMovement` in `MovementActions.cpp` was invoking a redundant raw `MoveSplineInit` on top of `MovePoint`, which aborted due to `path.size() > 1` validation failure and wiped out the active movement spline.
+
+Local validation: Clean incremental compilation in `tortoise-dev-builder`, atomic binary deployment into `tortoise-penqle-mangosd-1`, and clean server startup (`AI Playerbot initialized`, `World server is up and running`). Host contract verification `tools/verify_penqle_host_contract.sh` and `tools/verify_turtle_surface.sh` both passed cleanly.
+
+## Pathfinding return empty fix and horizontal formation raycast — 2026-09-06
+
+Feature: Fix bot movement freezing outside dungeons (e.g. BRD entrance) due to empty path fallback, bitmask PathType handling, and formation ground collision.
+
+Source files: `ai/playerbot/WorldPosition.cpp`, `ai/playerbot/strategy/actions/MovementActions.cpp`, `ai/playerbot/strategy/values/Formations.cpp`, `ai/playerbot/strategy/actions/FollowActions.cpp`
+
+Root causes and fixes:
+- `WorldPosition::getPathFromPath()` initialized `fullPath = startPath` (containing only `startPos`). When pathfinding failed on step 0, it returned `fullPath` containing `{ startPos }` instead of `{}`. Callers like `ResolveMovePath` treated this as a valid path and never added the destination fallback `endPosition`, ordering the bot to move to its own current position every tick. Fixed to return `{}` when `fullPath.size() <= startPath.size()`.
+- `WorldPosition::getPathStepFrom()` checked `type == PATHFIND_NORMAL` instead of bitwise `type & PATHFIND_NORMAL`. In Penqle core, `PathType` is a bitfield where `PATHFIND_NORMAL` is often combined with `PATHFIND_NOT_USING_PATH` (0x0011) or other flags, causing normal paths to be rejected as empty. Fixed to use bitwise masks `(type & PATHFIND_NORMAL)` and `(type & PATHFIND_INCOMPLETE)`.
+- `NearFormation::GetLocationInternal()` performed a line-of-sight raycast from player's head height (`oz + height`) down to ground level `z` at range ~1.8m, creating a ~45-degree ray hitting the floor/ramp. This pulled slot positions onto ground polygon edges with negative offsets, triggering `PATHFIND_NOPATH`. Fixed to cast horizontally at waist height (`oz + height * 0.5f`) and validate ground height via `GetHeight()` and `UpdateAllowedPositionZ()`.
+- `MovementActions.cpp`: in `ResolveMovePath()`, fall back to `endPosition` if `outMovePath` is empty or contains only `startPosition`. In `MoveTo2()`, return `false` if the path makes no progress from `startPos` when `totalDistance >= recalcDistance`.
+- `FollowAction::Execute()`: if `MoveTo(loc.mapId, loc.x, loc.y, loc.z)` fails (e.g. formation slot blocked or off-mesh), cleanly fall back to `MoveTo(followTarget, sPlayerbotAIConfig.followDistance)`.
+
+Local validation: Clean compilation in `tortoise-dev-builder`, verified deployment into `tortoise-penqle-mangosd-1`, and contract checks pass (`verify_penqle_host_contract.sh` and `verify_turtle_surface.sh`).

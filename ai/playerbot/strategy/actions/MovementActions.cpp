@@ -549,8 +549,11 @@ TravelPath MovementAction::ResolveMovePath(const WorldPosition& startPosition, c
     if (!lastMove.lastPath.empty() && !outMovePath.empty() && lastMove.lastPath.GetBack().distance(endPosition) <= outMovePath.GetBack().distance(endPosition))
         outMovePath = lastMove.lastPath;
 
-    if (outMovePath.empty())
+    if (outMovePath.empty() || (outMovePath.GetPointPath().size() == 1 && outMovePath.GetBack().distance(startPosition) < sPlayerbotAIConfig.targetPosRecalcDistance))
+    {
+        outMovePath.clear();
         outMovePath.addPoint(endPosition);
+    }
 
     return outMovePath;
 }
@@ -700,76 +703,25 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
 
     mm.Clear();
 
-    ForcedMovement moveMode = masterWalking ? FORCED_MOVEMENT_WALK : FORCED_MOVEMENT_RUN;
-
     std::vector<WorldPosition> path = movePath.GetPointPath();
+    if (path.empty())
+        return;
 
-    if (!generatePath || !bot->IsFlying())
-    {
-        WorldPosition movePosition = path.back();
-
-        // Tortoise's MovePoint signature is (id, x, y, z, options, speed, orientation),
-        // NOT cmangos's (id, x, y, z, ForcedMovement, bool generatePath). The ported call
-        // below used to pass `moveMode` into `options` and the `generatePath` bool into the
-        // `speed` float — so generatePath==true set the velocity to 1.0 yd/s, making bots
-        // crawl slower than walking. Translate the intent into proper MoveOptions instead and
-        // leave speed at its default so it is derived from the run/walk movement flags.
-        uint32 moveOptions = (moveMode == FORCED_MOVEMENT_WALK) ? MOVE_WALK_MODE : MOVE_RUN_MODE;
-        if (generatePath)
-            moveOptions |= MOVE_PATHFINDING;
-        mm.MovePoint(movePosition.GetMapId(),
-            movePosition.getX(),
-            movePosition.getY(),
-            movePosition.getZ(),
-            moveOptions);
-    }
-
-    GeneratePathAvoidingHazards(path);
-
-    std::vector<G3D::Vector3> pointPath = WorldPosition().toPointsArray(path);
+    WorldPosition movePosition = path.back();
     float size = WorldPosition().GetPathLength(path);
 
-    bool usePath = true;
+    ForcedMovement moveMode = masterWalking ? FORCED_MOVEMENT_WALK : FORCED_MOVEMENT_RUN;
 
-    if (usePath)
-    {
-        bool normalizeZ = true;
+    uint32 moveOptions = (moveMode == FORCED_MOVEMENT_WALK) ? MOVE_WALK_MODE : MOVE_RUN_MODE;
+    if (generatePath)
+        moveOptions |= MOVE_PATHFINDING;
 
-        for (auto& p : pointPath)
-        {
-            if (bot->GetTransport())
-                bot->GetTransport()->CalculatePassengerPosition(p.x, p.y, p.z);
-            bot->UpdateAllowedPositionZ(p.x, p.y, p.z);
-            if (bot->GetTransport())
-                bot->GetTransport()->CalculatePassengerOffset(p.x, p.y, p.z);
-        }
+    mm.MovePoint(0,
+        movePosition.getX(),
+        movePosition.getY(),
+        movePosition.getZ(),
+        moveOptions);
 
-        Movement::MoveSplineInit init(*bot, "DispatchMovement");
-        init.MovebyPath(pointPath);
-        init.SetWalk(moveMode == FORCED_MOVEMENT_WALK);
-        if (bot->GetTransport())
-            init.SetTransport(bot->GetTransport()->GetGUIDLow());
-        init.Launch();
-    }
-    else
-    {
-        WorldPosition movePosition = path.back();
-
-        // Tortoise's MovePoint signature is (id, x, y, z, options, speed, orientation),
-        // NOT cmangos's (id, x, y, z, ForcedMovement, bool generatePath). The ported call
-        // below used to pass `moveMode` into `options` and the `generatePath` bool into the
-        // `speed` float — so generatePath==true set the velocity to 1.0 yd/s, making bots
-        // crawl slower than walking. Translate the intent into proper MoveOptions instead and
-        // leave speed at its default so it is derived from the run/walk movement flags.
-        uint32 moveOptions = (moveMode == FORCED_MOVEMENT_WALK) ? MOVE_WALK_MODE : MOVE_RUN_MODE;
-        if (generatePath)
-            moveOptions |= MOVE_PATHFINDING;
-        mm.MovePoint(movePosition.GetMapId(),
-            movePosition.getX(),
-            movePosition.getY(),
-            movePosition.getZ(),
-            moveOptions);
-    }
     WaitForReach(size);
 }
 
@@ -838,7 +790,9 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
     lastMove.setPath(movePath);
 
     if (movePath.empty())
+    {
         return false;
+    }
 
 
     if (!bot->GetTransport())
@@ -882,6 +836,12 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
     }
 
     if (movePath.empty())
+    {
+        return false;
+    }
+
+    if (totalDistance >= sPlayerbotAIConfig.targetPosRecalcDistance &&
+        movePath.GetBack().distance(startPos) < sPlayerbotAIConfig.targetPosRecalcDistance)
     {
         return false;
     }
@@ -1012,8 +972,6 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
             sLog.outError("%s", pathBuf);
         }
     }
-    // END DEBUG
-
     DispatchMovement(movePath, generatePath, masterWalking);
 
     if (!idle)

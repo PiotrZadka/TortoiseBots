@@ -52,7 +52,7 @@ void FollowMasterStrategy::OnStrategyAdded(BotState state)
 
 void FollowMasterStrategy::OnStrategyRemoved(BotState state)
 {
-    if (state == ai->GetState() && ai->GetBot()->GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE)
+    if (state == ai->GetState() && (ai->GetBot()->GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE || sServerFacade.isMoving(ai->GetBot())))
     {
         ai->StopMoving();
     }

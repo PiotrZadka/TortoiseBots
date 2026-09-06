@@ -12,25 +12,24 @@ using namespace ai;
 
 bool FollowAction::Execute(Event& event)
 {
-    bool moved = false;
-    Unit* followTarget = AI_VALUE(Unit*, "follow target");
     Formation* formation = AI_VALUE(Formation*, "formation");
-
-    if (ai->IsSafe(followTarget))
+    if (formation)
     {
-        if (formation)
+        WorldLocation loc = formation->GetLocation();
+        if (!Formation::IsNullLocation(loc) && loc.mapId != -1)
         {
-            WorldLocation loc = formation->GetLocation();
-            if (!Formation::IsNullLocation(loc) && loc.mapId != -1)
-            {
-                moved = Follow(followTarget, formation->getOffset(), formation->GetAngle());
-            }
+            if (MoveTo(loc.mapId, loc.x, loc.y, loc.z))
+                return true;
         }
     }
-    else
-        moved = Follow(followTarget, 0, 0);
 
-    return moved;
+    Unit* followTarget = AI_VALUE(Unit*, "follow target");
+    if (ai->IsSafe(followTarget))
+    {
+        return MoveTo(followTarget, sPlayerbotAIConfig.followDistance);
+    }
+
+    return false;
 }
 
 bool FollowAction::isUseful()
@@ -38,7 +37,9 @@ bool FollowAction::isUseful()
     if (!ai->CanMove())
         return false;
 
-    float distance = 0;
+    if (bot->IsNonMeleeSpellCasted(true))
+        return false;
+
     Unit* followTarget = AI_VALUE(Unit*, "follow target");
     Formation* formation = AI_VALUE(Formation*, "formation");
 
@@ -58,40 +59,23 @@ bool FollowAction::isUseful()
         }
     }
 
-    if (followTarget)
-    {
-        distance = sServerFacade.getDistance2d(bot, followTarget);
-    }
-    else
+    if (formation)
     {
         WorldLocation loc = formation->GetLocation();
-        if (Formation::IsNullLocation(loc) || bot->GetMapId() != loc.mapId)
+        if (!Formation::IsNullLocation(loc) && bot->GetMapId() == loc.mapId)
         {
-            return false;
+            float distance = sServerFacade.getDistance2d(bot, loc.x, loc.y);
+            return sServerFacade.IsDistanceGreaterThan(distance, formation->GetMaxDistance());
         }
-
-        distance = sServerFacade.getDistance2d(bot, loc.x, loc.y);
     }
 
-    if (sServerFacade.IsDistanceGreaterThan(distance, sPlayerbotAIConfig.sightDistance))
+    if (followTarget)
     {
-        return true;
+        float distance = sServerFacade.getDistance2d(bot, followTarget);
+        return sServerFacade.IsDistanceGreaterThan(distance, sPlayerbotAIConfig.followDistance);
     }
 
-    // maybe jump is faster?
-    if (ai->HasStrategy("follow jump", BotState::BOT_STATE_NON_COMBAT) && ai->AllowActivity())
-    {
-        return true;
-    }
-
-    if (followTarget && bot->GetMotionMaster()->GetCurrentMovementGeneratorType() == FOLLOW_MOTION_TYPE &&
-        sServerFacade.GetChaseTarget(bot) &&
-        sServerFacade.GetChaseTarget(bot)->getObjectGuid() == followTarget->getObjectGuid())
-    {
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 bool FollowAction::CanDeadFollow(Unit* target)
@@ -107,7 +91,7 @@ bool FollowAction::CanDeadFollow(Unit* target)
 
 bool StopFollowAction::isUseful()
 {
-    if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE)
+    if (bot->GetMotionMaster()->GetCurrentMovementGeneratorType() != FOLLOW_MOTION_TYPE && !sServerFacade.isMoving(bot))
         return false;
 
     if (sServerFacade.GetChaseTarget(bot) && !sServerFacade.GetChaseTarget(bot)->IsPlayer() && sServerFacade.GetChaseTarget(bot)->IsMoving())
