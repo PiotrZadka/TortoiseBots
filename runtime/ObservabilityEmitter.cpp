@@ -347,6 +347,11 @@ bool ObservabilityEmitter::IsEnabled() const
     return m_enabled && m_socketFd != kInvalidSocket;
 }
 
+void ObservabilityEmitter::SetExternalRosterProvider(std::function<void(std::vector<Player*>&)> provider)
+{
+    m_externalRosterProvider = std::move(provider);
+}
+
 void ObservabilityEmitter::SendDatagram(std::string const& payload)
 {
     if (!IsEnabled())
@@ -530,6 +535,8 @@ void ObservabilityEmitter::Update(uint32 diff)
 
     uint32 nowMs = WorldTimer::getMSTime();
     std::vector<Player*> activeBots = BotManager::Instance().GetAllBots();
+    if (m_externalRosterProvider)
+        m_externalRosterProvider(activeBots);
 
     for (Player* bot : activeBots)
     {
