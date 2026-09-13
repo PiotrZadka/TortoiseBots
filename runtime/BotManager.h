@@ -3,6 +3,7 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
+#include <ctime>
 #include <vector>
 // pi-lens-ignore: clang:pp_file_not_found
 #include "ObjectGuid.h"
@@ -110,6 +111,11 @@ public:
     // point (death count reset). Fail-closed: any validation miss, non-random
     // record, master/group/BG membership, or disabled config keeps position.
     bool RelocateHopelessBot(::Player* bot);
+    // Time-based rescue for random bots stranded alive where their level
+    // cannot survive (guarded towns etc. never produce the deaths that drive
+    // RelocateHopelessBot). Same eligibility, +5 rule and destinations;
+    // relocates after a grace period of continuous stranding.
+    bool RelocateStrandedBot(::Player* bot);
 
     // Durable manual ownership is separate from the transient Headless record.
     // GetOwnedCharacters includes every undeleted same-account character plus
@@ -210,6 +216,9 @@ private:
     ObjectGuid m_packetTestMasterGuid;
     ObjectGuid m_packetTestBotGuid;
     uint32_t m_packetTestTicks = 0;
+    void SweepStrandedBots(uint32_t diff);
+    uint32_t m_strandedSweepElapsedMs = 0;
+    std::unordered_map<uint32_t, time_t> m_strandedSince; // key = guid counter
     uint8_t m_packetTestStage = 0;
 };
 } // namespace TortoiseBots
