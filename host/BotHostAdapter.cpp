@@ -12,6 +12,7 @@
 #include "ObjectMgr.h"
 #include "Log.h"
 #include "Database/DatabaseEnv.h"
+#include "ModuleLog.h"
 
 #include <cctype>
 #include <string>
@@ -62,12 +63,23 @@ bool IsDisposableFixture(uint32 accountId, uint32 guidLow, char const* testName)
 }
 
 BotHostAdapter::BotHostAdapter()
-    : WorldScript("tortoisebots_world", { WORLDHOOK_ON_STARTUP, WORLDHOOK_ON_UPDATE, WORLDHOOK_ON_SHUTDOWN })
+    : WorldScript("tortoisebots_world", { WORLDHOOK_ON_STARTUP, WORLDHOOK_ON_UPDATE, WORLDHOOK_ON_SHUTDOWN,
+        WORLDHOOK_ON_AFTER_CONFIG_LOAD })
 {
+}
+
+void BotHostAdapter::OnAfterConfigLoad(bool /*reload*/)
+{
+    ModuleLog::Instance().ApplyConfig();
 }
 
 void BotHostAdapter::OnStartup()
 {
+    // World::LoadConfigSettings() runs before module scripts are constructed,
+    // so the startup pass of OnAfterConfigLoad never reaches this script. Read
+    // the level here; the hook then covers `.reload config`.
+    ModuleLog::Instance().ApplyConfig();
+
     bool configured = sPlayerbotAIConfig.Initialize();
     RandomBotService::Instance().Initialize();
     BattlegroundQueueService::Instance().Initialize();
@@ -106,7 +118,7 @@ void BotHostAdapter::OnStartup()
             sLog.outError("TortoiseBots: PacketBridgeTest requires two distinct disposable TBPLAY fixtures on one account");
     }
 
-    sLog.outString("TortoiseBots: native module loaded (AI %s)", configured ? "enabled" : "disabled");
+    TB_LOG_BASIC("TortoiseBots: native module loaded (AI %s)", configured ? "enabled" : "disabled");
     ObservabilityEmitter::Instance().Initialize();
 }
 void BotHostAdapter::OnUpdate(uint32 diff)
@@ -128,7 +140,7 @@ void BotHostAdapter::OnShutdown()
     BattlegroundQueueService::Instance().Shutdown();
     RandomBotService::Instance().Shutdown();
     BotActivityLeaseManager::Instance().Clear();
-    sLog.outString("TortoiseBots: native module shutting down after %u world ticks", m_ticks);
+    TB_LOG_BASIC("TortoiseBots: native module shutting down after %u world ticks", m_ticks);
 }
 
 } // namespace TortoiseBots

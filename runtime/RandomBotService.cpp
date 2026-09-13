@@ -17,6 +17,7 @@
 #include "SharedDefines.h"
 #include "Database/DBCStores.h"
 #include "Util.h"
+#include "../host/ModuleLog.h"
 
 #if __has_include("Handlers/CharacterCreation.h")
 #include "Handlers/CharacterCreation.h"
@@ -146,14 +147,14 @@ void RandomBotService::Initialize()
     m_pendingStaleLogged = false;
     if (!sPlayerbotAIConfig.enabled)
     {
-        sLog.outString("TortoiseBots: native random-bot service disabled by configuration");
+        TB_LOG_BASIC("TortoiseBots: native random-bot service disabled by configuration");
         return;
     }
     // Load pool even if autologin is off when auto-create is on: the deficit
     // check needs the real candidate set.
     if (!sPlayerbotAIConfig.randomBotAutologin && !sPlayerbotAIConfig.randomBotAutoCreate)
     {
-        sLog.outString("TortoiseBots: native random-bot service disabled by configuration");
+        TB_LOG_BASIC("TortoiseBots: native random-bot service disabled by configuration");
         return;
     }
 
@@ -168,7 +169,7 @@ void RandomBotService::Initialize()
     m_started = sPlayerbotAIConfig.randomBotLoginAtStartup &&
         (!sPlayerbotAIConfig.randomBotLoginWithPlayer || m_humanSessions > 0);
 
-    sLog.outString("TortoiseBots: native random-bot pool loaded (%u candidates, target %u, startup %u, autoCreate %u)",
+    TB_LOG_BASIC("TortoiseBots: native random-bot pool loaded (%u candidates, target %u, startup %u, autoCreate %u)",
         static_cast<uint32>(m_candidates.size()), m_targetCount, m_started, sPlayerbotAIConfig.randomBotAutoCreate ? 1 : 0);
 }
 
@@ -367,7 +368,7 @@ RandomBotService::AutoCreateCharResult RandomBotService::TryCreateCharacterOnAcc
             m_ageMs.push_back(0);
             m_strategyAgeMs.push_back(0);
             m_randomizeAgeMs.push_back(0);
-            sLog.outString("TortoiseBots: auto-create created character %s (%s) race %u class %u on account %u",
+            TB_LOG_DETAIL("TortoiseBots: auto-create created character %s (%s) race %u class %u on account %u",
                 norm.c_str(), outcome.guid.GetString().c_str(), uint32(race), uint32(cls), accountId);
             return AutoCreateCharResult::Success;
         }
@@ -404,7 +405,7 @@ RandomBotService::AutoCreateCharResult RandomBotService::TryCreateCharacterOnAcc
         }
         if (outcome.result == CHAR_CREATE_ACCOUNT_LIMIT || outcome.result == CHAR_CREATE_SERVER_LIMIT)
         {
-            sLog.outString("TortoiseBots: auto-create account %u at limit (%u), excluding from auto-create", accountId, uint32(outcome.result));
+            TB_LOG_DETAIL("TortoiseBots: auto-create account %u at limit (%u), excluding from auto-create", accountId, uint32(outcome.result));
             return AutoCreateCharResult::Permanent;
         }
         if (outcome.result == CHAR_CREATE_DISABLED)
@@ -518,7 +519,7 @@ bool RandomBotService::TryAutoCreate()
                 if (std::find(m_rndBotAccountIds.begin(), m_rndBotAccountIds.end(), pendingId) == m_rndBotAccountIds.end())
                     m_rndBotAccountIds.push_back(pendingId);
                 else
-                    sLog.outString("TortoiseBots: auto-create pending account %s (%u) already in pool, proceeding to character",
+                    TB_LOG_DETAIL("TortoiseBots: auto-create pending account %s (%u) already in pool, proceeding to character",
                         resolvedName.c_str(), pendingId);
                 AutoCreateCharResult pendingRes = TryCreateCharacterOnAccount(pendingId, validAll);
                 if (pendingRes == AutoCreateCharResult::Success)
@@ -652,7 +653,7 @@ bool RandomBotService::TryAutoCreate()
                 newAccountId = id;
                 newUsername = username;
                 m_rndBotAccountIds.push_back(id);
-                sLog.outString("TortoiseBots: auto-create created RNDBOT account %s (%u)", username.c_str(), id);
+                TB_LOG_DETAIL("TortoiseBots: auto-create created RNDBOT account %s (%u)", username.c_str(), id);
             }
             else
             {
@@ -732,14 +733,14 @@ void RandomBotService::ResolvePinnedBots()
         std::unique_ptr<QueryResult> result(CharacterDatabase.PQuery("SELECT guid FROM characters WHERE name = '%s' LIMIT 1", escaped.c_str()));
         if (!result)
         {
-            sLog.outString("TortoiseBots: pinned bot '%s' was not found or the lookup failed (no retry until restart)", rawName.c_str());
+            TB_LOG_DETAIL("TortoiseBots: pinned bot '%s' was not found or the lookup failed (no retry until restart)", rawName.c_str());
             continue;
         }
         Field* fields = result->Fetch();
         uint32 guidLow = fields[0].GetUInt32();
         if (!guidLow)
         {
-            sLog.outString("TortoiseBots: pinned bot '%s' resolved to invalid guid", rawName.c_str());
+            TB_LOG_DETAIL("TortoiseBots: pinned bot '%s' resolved to invalid guid", rawName.c_str());
             continue;
         }
         // Bounded, resolution-only check: a name that exists in `characters`
@@ -755,18 +756,18 @@ void RandomBotService::ResolvePinnedBots()
             }
         if (!inPool)
         {
-            sLog.outString("TortoiseBots: pinned bot '%s' (guid %u) not in RNDBOT pool, ignoring", rawName.c_str(), guidLow);
+            TB_LOG_DETAIL("TortoiseBots: pinned bot '%s' (guid %u) not in RNDBOT pool, ignoring", rawName.c_str(), guidLow);
             continue;
         }
         m_pinnedGuids.insert(guidLow);
-        sLog.outString("TortoiseBots: pinned bot '%s' resolved to guid %u", rawName.c_str(), guidLow);
+        TB_LOG_DETAIL("TortoiseBots: pinned bot '%s' resolved to guid %u", rawName.c_str(), guidLow);
     }
 
     m_pinnedResolved = true;
     if (m_pinnedGuids.empty())
-        sLog.outString("TortoiseBots: no pinned bots resolved from %u configured names", static_cast<uint32>(sPlayerbotAIConfig.pinnedBotNames.size()));
+        TB_LOG_BASIC("TortoiseBots: no pinned bots resolved from %u configured names", static_cast<uint32>(sPlayerbotAIConfig.pinnedBotNames.size()));
     else
-        sLog.outString("TortoiseBots: %u pinned bot(s) cached", static_cast<uint32>(m_pinnedGuids.size()));
+        TB_LOG_BASIC("TortoiseBots: %u pinned bot(s) cached", static_cast<uint32>(m_pinnedGuids.size()));
 }
 
 void RandomBotService::OnHumanLogin()
@@ -775,7 +776,7 @@ void RandomBotService::OnHumanLogin()
     if (m_initialized && sPlayerbotAIConfig.randomBotAutologin && !m_started)
     {
         m_started = true;
-        sLog.outString("TortoiseBots: native random-bot service started after a human login");
+        TB_LOG_BASIC("TortoiseBots: native random-bot service started after a human login");
     }
 }
 
@@ -818,7 +819,7 @@ void RandomBotService::RemoveExpiredBots(uint32_t diff)
         if (m_ageMs[i] < limit)
             continue;
 
-        sLog.outString("TortoiseBots: native random bot %s reached its online lifetime; removing",
+        TB_LOG_DETAIL("TortoiseBots: native random bot %s reached its online lifetime; removing",
             candidate.characterGuid.GetString().c_str());
         BotManager::Instance().RemoveBot(candidate.characterGuid, true);
         BotActivityLeaseManager::Instance().Release(candidate.characterGuid.GetCounter(), BotActivity::Grinding);
@@ -892,7 +893,7 @@ void RandomBotService::MaintainOnlinePool()
             {
                 ++online;
                 ++added;
-                sLog.outString("TortoiseBots: pinned random bot %s queued on account %u (prioritized)",
+                TB_LOG_DETAIL("TortoiseBots: pinned random bot %s queued on account %u (prioritized)",
                     pinnedCandidate->characterGuid.GetString().c_str(), pinnedCandidate->accountId);
             }
             else
@@ -929,7 +930,7 @@ void RandomBotService::MaintainOnlinePool()
         {
             ++online;
             ++added;
-            sLog.outString("TortoiseBots: native random bot %s queued on account %u",
+            TB_LOG_DETAIL("TortoiseBots: native random bot %s queued on account %u",
                 candidate.characterGuid.GetString().c_str(), candidate.accountId);
         }
         else

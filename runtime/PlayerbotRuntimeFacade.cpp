@@ -22,6 +22,7 @@
 #include "Objects/Player.h"
 #include "Log.h"
 #include "Database/DatabaseEnv.h"
+#include "../host/ModuleLog.h"
 
 #include <algorithm>
 #include <ctime>
@@ -445,5 +446,5 @@ void RandomBotFacade::PrintTeleportCache()
 {
     auto locations = WorldDatabase.Query("SELECT COUNT(*) FROM ai_playerbot_named_location");
     uint32 namedLocations = locations ? locations->Fetch()[0].GetUInt32() : 0;
-    sLog.outString("TortoiseBots: native travel points; named-location rows: %u", namedLocations);
+    TB_LOG_BASIC("TortoiseBots: native travel points; named-location rows: %u", namedLocations);
 }

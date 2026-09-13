@@ -3,6 +3,7 @@
 #include "World.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Log.h"
+#include "ModuleLog.h"
 
 namespace TortoiseBots {
 
@@ -11,7 +12,7 @@ bool BotSessionAdapter::StartHeadlessSession(uint32 accountId, ObjectGuid charac
     HeadlessSessionStartResult result = sWorld.StartHeadlessSession(accountId, characterGuid, LOCALE_enUS, "TortoiseBot#" + std::to_string(accountId));
     if (result == HeadlessSessionStartResult::Started)
     {
-        sLog.outString("TortoiseBots: StartHeadlessSession acct %u guid %s — queued (Started)", accountId, characterGuid.GetString().c_str());
+        TB_LOG_DETAIL("TortoiseBots: StartHeadlessSession acct %u guid %s — queued (Started)", accountId, characterGuid.GetString().c_str());
         return true;
     }
     sLog.outError("TortoiseBots: StartHeadlessSession acct %u guid %s failed %u", accountId, characterGuid.GetString().c_str(), static_cast<uint32>(result));
@@ -22,9 +23,9 @@ bool BotSessionAdapter::StopHeadlessSession(ObjectGuid characterGuid, bool save)
 {
     bool ok = sWorld.StopHeadlessSession(characterGuid, save);
     if (ok)
-        sLog.outString("TortoiseBots: StopHeadlessSession guid %s save %u", characterGuid.GetString().c_str(), save ? 1u : 0u);
+        TB_LOG_DETAIL("TortoiseBots: StopHeadlessSession guid %s save %u", characterGuid.GetString().c_str(), save ? 1u : 0u);
     else
-        sLog.outDebug("TortoiseBots: StopHeadlessSession guid %s no session to stop", characterGuid.GetString().c_str());
+        TB_LOG_DEBUG("TortoiseBots: StopHeadlessSession guid %s no session to stop", characterGuid.GetString().c_str());
     return ok;
 }
 

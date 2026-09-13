@@ -37,6 +37,7 @@
 #endif
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Maps/Map.h"
+#include "../host/ModuleLog.h"
 
 #include <algorithm>
 #include <vector>
@@ -128,12 +129,12 @@ void BattlegroundQueueService::Initialize()
 
     if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotBgEnabled)
     {
-        sLog.outString("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
+        TB_LOG_BASIC("TortoiseBots: BG auto-queue disabled (ai %u bg %u)",
             sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotBgEnabled);
         return;
     }
 
-    sLog.outString("TortoiseBots: demand-aware BG auto-queue enabled interval %u max %u (WSG/AB/AV, guid 1337 bypass, core BattleGroundMgr ownership)",
+    TB_LOG_BASIC("TortoiseBots: demand-aware BG auto-queue enabled interval %u max %u (WSG/AB/AV, guid 1337 bypass, core BattleGroundMgr ownership)",
         sPlayerbotAIConfig.randomBotBgQueueInterval, sPlayerbotAIConfig.randomBotBgMaxQueuePerInterval);
 }
 
@@ -330,10 +331,10 @@ bool BattlegroundQueueService::TryQueue(::Player* bot, uint32 queueTypeValue)
         {
             if (HasLiveNonBotMember(bot->GetGroup()))
             {
-                sLog.outString("TortoiseBots: BG auto-queue %s group has live non-bot/human member -> skip (would silently pull)", bot->GetName());
+                TB_LOG_DEBUG("TortoiseBots: BG auto-queue %s group has live non-bot/human member -> skip (would silently pull)", bot->GetName());
                 return false;
             }
-            sLog.outString("TortoiseBots: BG auto-queue %s group not all Headless random bots (offline/non-live) -> fallback solo", bot->GetName());
+            TB_LOG_DEBUG("TortoiseBots: BG auto-queue %s group not all Headless random bots (offline/non-live) -> fallback solo", bot->GetName());
             joinAsGroup = 0;
         }
     }
@@ -394,7 +395,7 @@ bool BattlegroundQueueService::TryQueue(::Player* bot, uint32 queueTypeValue)
     // WSG/AB/AV, but fail closed rather than sending 0).
     if (!mapId)
     {
-        sLog.outString("TortoiseBots: BG auto-queue no map for bgType %u for bot %s", bgType, bot->GetName());
+        TB_LOG_DETAIL("TortoiseBots: BG auto-queue no map for bgType %u for bot %s", bgType, bot->GetName());
         rollbackLeases();
         return false;
     }
@@ -418,7 +419,7 @@ bool BattlegroundQueueService::TryQueue(::Player* bot, uint32 queueTypeValue)
     // other invalid joins; never report success if not actually queued.
     if (!bot->InBattleGroundQueueForBattleGroundQueueType(queueType))
     {
-        sLog.outString("TortoiseBots: BG auto-queue %s (%s) not queued (core rejected joinAsGroup=%u)", bot->GetName(), name, joinAsGroup);
+        TB_LOG_DETAIL("TortoiseBots: BG auto-queue %s (%s) not queued (core rejected joinAsGroup=%u)", bot->GetName(), name, joinAsGroup);
         rollbackLeases();
         return false;
     }
@@ -456,7 +457,7 @@ bool BattlegroundQueueService::TryQueue(::Player* bot, uint32 queueTypeValue)
         }
     }
 
-    sLog.outString("TortoiseBots: BG auto-queue %s (%s) level %u team %u guid %s%s",
+    TB_LOG_DETAIL("TortoiseBots: BG auto-queue %s (%s) level %u team %u guid %s%s",
         bot->GetName(), name, bot->GetLevel(), bot->GetTeam(), bot->GetObjectGuid().GetString().c_str(),
         joinAsGroup ? " as group" : " solo");
     return true;
@@ -592,7 +593,7 @@ void BattlegroundQueueService::Update(uint32_t diff)
     }
 
     if (queued)
-        sLog.outString("TortoiseBots: BG auto-queue tick queued %u/%u for human demand (eligible %u, demand buckets %u, interval %u ms)",
+        TB_LOG_DEBUG("TortoiseBots: BG auto-queue tick queued %u/%u for human demand (eligible %u, demand buckets %u, interval %u ms)",
             queued, maxPerInterval, static_cast<uint32>(candidates.size()),
             static_cast<uint32>(demands.size()), interval);
 }

@@ -27,6 +27,7 @@
 #include "Player.h"
 #include "World.h"
 #include "Log.h"
+#include "../host/ModuleLog.h"
 #include "Timer.h"
 #include "MotionMaster.h"
 #include <cmath>
@@ -308,7 +309,7 @@ void ObservabilityEmitter::Initialize()
         m_destAddr = addr;
     }
 
-    sLog.outString("TortoiseBots: Observability telemetry active on %s:%u", m_host.c_str(), m_port);
+    TB_LOG_BASIC("TortoiseBots: Observability telemetry active on %s:%u", m_host.c_str(), m_port);
 }
 
 void ObservabilityEmitter::Shutdown()

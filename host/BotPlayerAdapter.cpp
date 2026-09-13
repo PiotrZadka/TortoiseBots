@@ -11,6 +11,7 @@
 #include "WorldSession.h"
 #include "Chat.h"
 #include "../runtime/ObservabilityEmitter.h"
+#include "ModuleLog.h"
 
 namespace TortoiseBots {
 
@@ -54,7 +55,7 @@ void BotPlayerAdapter::OnMapChanged(Player* player)
 
         if (PlayerConvenience::Instance().RequestSummon(player, bot))
         {
-            sLog.outString("TortoiseBots: returning bot %s after master %s left a dungeon",
+            TB_LOG_DETAIL("TortoiseBots: returning bot %s after master %s left a dungeon",
                 bot->GetName(), player->GetName());
         }
         else
