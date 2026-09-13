@@ -3196,6 +3196,9 @@ bool PlayerbotAI::SayToGuildRecruitment(std::string msg) { return SayToNamedChan
 
 bool PlayerbotAI::SayToParty(std::string msg, bool likePlayer)
 {
+    if (msg.empty())
+        return false;
+
     SanitizeCommandLikeChat(msg);
     if (!bot->GetGroup())
     {
@@ -3238,7 +3241,7 @@ bool PlayerbotAI::SayToParty(std::string msg, bool likePlayer)
 
 bool PlayerbotAI::SayToRaid(std::string msg)
 {
-    if (!bot->GetGroup() || !bot->GetGroup()->isRaidGroup())
+    if (msg.empty() || !bot->GetGroup() || !bot->GetGroup()->isRaidGroup())
     {
         return false;
     }
@@ -3256,6 +3259,9 @@ bool PlayerbotAI::SayToRaid(std::string msg)
 
 bool PlayerbotAI::Yell(std::string msg, bool likePlayer)
 {
+    if (msg.empty())
+        return false;
+
     SanitizeCommandLikeChat(msg);
     uint32 lang = LANG_UNIVERSAL;
     if (bot->GetTeam() == ALLIANCE)
@@ -3292,6 +3298,9 @@ bool PlayerbotAI::Yell(std::string msg, bool likePlayer)
 
 bool PlayerbotAI::Say(std::string msg, bool likePlayer)
 {
+    if (msg.empty())
+        return false;
+
     SanitizeCommandLikeChat(msg);
     uint32 lang = LANG_UNIVERSAL;
     if (bot->GetTeam() == ALLIANCE)
@@ -3329,6 +3338,9 @@ bool PlayerbotAI::Say(std::string msg, bool likePlayer)
 
 bool PlayerbotAI::Whisper(std::string msg, std::string receiverName, bool likePlayer)
 {
+    if (msg.empty())
+        return false;
+
     ObjectGuid receiver = sObjectMgr.GetPlayerGuidByName(receiverName);
     Player* rPlayer = sObjectMgr.GetPlayer(receiver);
 
