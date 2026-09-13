@@ -14,6 +14,9 @@ AiPlayerbot.Enabled = 0
 # Enable Observability telemetry UDP emitter (default 0, switched off)
 AiPlayerbot.Observability = 0
 AiPlayerbot.ObservabilityPort = 9195
+# Log every executed engine action ("Engine executing Action=...") to the server log.
+# Debug aid only - roughly 25 lines per second with ten random bots (default 0, off).
+AiPlayerbot.LogEngineActions = 0
 
 # Enable random bot system
 # Single-bot manual-add (`.bot add <name>`) is the

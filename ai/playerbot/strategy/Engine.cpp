@@ -948,8 +948,9 @@ bool Engine::ListenAndExecute(Action* action, Event& event)
     if (actionExecutionListeners.Before(action, event))
     {
         ai->SetLastEvent(event);
-        sLog.outString("TortoiseBots AI: Engine executing Action=%s Trigger=%s bot=%s",
-        action->getName().c_str(), event.getSource().c_str(), ai->GetBot()->GetName());
+        if (sPlayerbotAIConfig.logEngineActions)
+            sLog.outString("TortoiseBots AI: Engine executing Action=%s Trigger=%s bot=%s",
+                action->getName().c_str(), event.getSource().c_str(), ai->GetBot()->GetName());
     actionExecuted = actionExecutionListeners.AllowExecution(action, event) ? action->Execute(event) : true;
         if (actionExecuted)
         {
