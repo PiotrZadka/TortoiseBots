@@ -155,9 +155,10 @@ bool TryRandomTeleport(::Player* bot, BotRecord const& record)
         return false;
     if (!record.random)
         return false;
-    // Match the existing RPG travel safety gate: low-level bots must not be
-    // scattered into NPC travel routes before they can survive the journey.
-    if (bot->GetLevel() < 5)
+    // Low-level bots are not scattered at all: below level 10 their quests are in the
+    // starting area and a level-fitting inn elsewhere (a capital, say) puts zones they
+    // cannot cross between them and their work.
+    if (bot->GetLevel() < 10)
         return false;
     if (bot->IsBeingTeleported())
         return false;
@@ -219,6 +220,23 @@ bool BotManager::RelocateHopelessBot(::Player* bot)
         return false;
     if (areaLevel <= (int32)bot->GetLevel() + 5)
         return false;
+    // A bot below level 10 belongs in its starting area: its quests are there, and any
+    // capital the picker would choose lies behind zones it cannot cross alive (a level-6
+    // dwarf sent to Stormwind walks the Burning Steppes to reach Coldridge Valley - or,
+    // from Darnassus, cannot reach it at all and dies or spins on the spot). Home bind.
+    if (bot->GetLevel() < 10)
+    {
+        if (!bot->TeleportToHomebind(0, false))
+        {
+            sLog.outError("TortoiseBots: hopeless-death relocation to home bind failed for bot %s, retaining position", bot->GetName());
+            return false;
+        }
+        if (deathCountValue)
+            deathCountValue->Reset();
+        sLog.outString("TortoiseBots: relocated hopeless bot %s level %u after %u deaths from area level %d to its home bind",
+            bot->GetName(), bot->GetLevel(), deathCount, areaLevel);
+        return true;
+    }
     ai::WorldPosition const* chosen = PickLevelFittingPoint(bot);
     if (!chosen)
         return false;
