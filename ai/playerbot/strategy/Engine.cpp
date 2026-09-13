@@ -945,11 +945,15 @@ bool Engine::ListenAndExecute(Action* action, Event& event)
 {
     bool actionExecuted = false;
     Action* prevExecutedAction = lastExecutedAction;
+    std::string lastActionName = prevExecutedAction ? prevExecutedAction->getName() : "";
     if (actionExecutionListeners.Before(action, event))
     {
         ai->SetLastEvent(event);
-        sLog.outString("TortoiseBots AI: Engine executing Action=%s Trigger=%s bot=%s",
-        action->getName().c_str(), event.getSource().c_str(), ai->GetBot()->GetName());
+        if (sPlayerbotAIConfig.CanLogAction(ai, action->getName(), true, lastActionName))
+        {
+            sLog.outString("TortoiseBots AI: Engine executing Action=%s Trigger=%s bot=%s",
+            action->getName().c_str(), event.getSource().c_str(), ai->GetBot()->GetName());
+        }
     actionExecuted = actionExecutionListeners.AllowExecution(action, event) ? action->Execute(event) : true;
         if (actionExecuted)
         {
@@ -958,7 +962,6 @@ bool Engine::ListenAndExecute(Action* action, Event& event)
         }
     }
 
-    std::string lastActionName = prevExecutedAction ? prevExecutedAction->getName() : "";
     if (sPlayerbotAIConfig.CanLogAction(ai, action->getName(), true, lastActionName))
     {
         std::ostringstream out;
