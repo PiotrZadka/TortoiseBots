@@ -98,3 +98,25 @@ Using `.bot strategy <+|-strategy>` or the `/tbm` addon:
 - `+silent` / `-silent` — Silences bot chatter in party/say chat so they execute commands quietly.
 - `+passive` / `-passive` — Halts all bot attacks; bots will only follow and hold fire.
 - `.bot formation <arrow|line|circle|shield>` — Changes follow positioning around the leader.
+
+---
+
+## 6. Diagnostic Logging
+
+The native module layer (bot lifecycle, random-bot, Auction House, battleground queue, and LFT services — everything under `host/` and `runtime/`) has its own verbosity setting, independent of the core server's own `LogLevel`. This lets you trace what the module is doing without turning on the engine's full debug output, and vice versa.
+
+```ini
+[TortoiseBotsConf]
+TortoiseBots.LogLevel = 2
+```
+
+| Level | Name | Shows |
+| :---: | :--- | :--- |
+| `0` | Minimal | Errors only. |
+| `1` | Basic | One-off startup, shutdown, and diagnostic test results (e.g. `PendingAddRemoveTest`, `AutoTest`). |
+| `2` | Detail (default) | Per-bot state transitions: session start/stop, add/remove, AH postings, BG queue entries. |
+| `3` | Debug | Per-tick and per-packet traces. High volume — intended for short diagnostic sessions, not left on. |
+
+Errors (`sLog.outError`) are always written regardless of this setting. The level is re-read on `.reload config`, so it can be raised or lowered without a server restart.
+
+This setting is separate from the strategy AI's own action trace, which stays gated behind the `debug`/`debug action` bot strategies (`.bot strategy +debug`) rather than a server-wide config key.
