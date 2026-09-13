@@ -5,6 +5,7 @@
 #include "GearSeedingGuard.h"
 #include "../ai/playerbot/PlayerbotAI.h"
 #include "../ai/playerbot/RandomBotFacade.h"
+#include "../ai/playerbot/PlayerbotFactory.h"
 #include "../host/BotSessionAdapter.h"
 #include "../commands/BotCommands.h"
 // pi-lens-ignore: clang:pp_file_not_found
@@ -276,6 +277,18 @@ BotManager& BotManager::Instance()
     return instance;
 }
 
+// A character with any primary profession has been through the skill initialisation
+// (or learned one on its own) - either way it must not be re-rolled.
+static bool HasPrimaryProfession(::Player* player)
+{
+    static uint16 const kPrimary[] = { SKILL_ALCHEMY, SKILL_BLACKSMITHING, SKILL_ENCHANTING, SKILL_ENGINEERING,
+                                       SKILL_HERBALISM, SKILL_LEATHERWORKING, SKILL_MINING, SKILL_SKINNING, SKILL_TAILORING };
+    for (uint16 id : kPrimary)
+        if (player->HasSkill(id))
+            return true;
+    return false;
+}
+
 void BotManager::OnPlayerLogin(::Player* player)
 {
     if (!player)
@@ -357,6 +370,21 @@ void BotManager::OnPlayerLogin(::Player* player)
     {
         sRandomBotFacade.UpdateGearSpells(player);
         sRandomBotFacade.SetValue(botGuidLow, "seeded", 1);
+    }
+
+    // Skills are separate from gear seeding. With DisableRandomLevels=1 a bot never goes
+    // through Randomize(), the only caller of InitAllSkills(): it would keep weapon
+    // skill 1 for good and never get a profession, so grind, craft and gather have
+    // nothing to work with. Give such a bot the level-bound skill set once, at any
+    // level; from then on it trains and skills up on its own. "Once" is decided from
+    // the character itself - a bot that already has a primary profession is left
+    // alone - because the facade values live in memory only and would not survive a
+    // restart (which would re-roll professions every time).
+    if (record.random && !HasPrimaryProfession(player))
+    {
+        PlayerbotFactory skills(player, player->GetLevel());
+        skills.InitAllSkills();
+        TB_LOG_DETAIL("TortoiseBots: bot %s received its level-bound skills and professions.", player->GetName());
     }
 
     TB_LOG_DETAIL("TortoiseBots: bot %s entered world through native PlayerScript", player->GetName());

@@ -60,6 +60,10 @@ public:
     void EquipGearPartialUpgrade() { return InitEquipment(false, false, true, true); }
     void UpgradeGear(bool syncWithMaster) { return InitEquipment(!syncWithMaster, syncWithMaster); }
     void UpgradeGearBest() { return InitEquipment(true, false, false); }
+    // Weapon/armour/riding skills plus two class-appropriate professions and the
+    // secondary skills, all bounded by the current level. Public so the runtime can
+    // give it to persistent-level bots, which never pass through Randomize().
+    void InitAllSkills();
     void AddReagents() { return InitReagents(); }
     void AddPotions() { return InitPotions(); }
     void AddConsumes() { return AddConsumables(); }
@@ -75,7 +79,6 @@ private:
     void InitEquipment(bool incremental, bool syncWithMaster, bool progressive = sPlayerbotAIConfig.randomGearProgression, bool partialUpgrade = false);
     void InitEquipmentNew(bool incremental);
     bool CanEquipItem(ItemPrototype const* proto, uint32 desiredQuality);
-    void InitAllSkills();
     void InitTradeSkills();
     void UpdateTradeSkills();
     void SetRandomSkill(uint16 id);
