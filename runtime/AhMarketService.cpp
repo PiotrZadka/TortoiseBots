@@ -35,6 +35,7 @@
 #include "LootMgr.h"
 #include "Spells/SpellMgr.h"
 #include "Item.h"
+#include "../host/ModuleLog.h"
 
 #include <list>
 #include <string>
@@ -191,7 +192,7 @@ void AhMarketService::EnsurePositionsLoaded()
     if (m_auctioneerPositions.empty())
         sLog.outError("TortoiseBots: AhMarket no auctioneer positions found - market dormant until restart/data reload (snapshot marked loaded, no per-tick retry)");
     else
-        sLog.outString("TortoiseBots: AhMarket loaded %u auctioneer positions", (uint32)m_auctioneerPositions.size());
+        TB_LOG_BASIC("TortoiseBots: AhMarket loaded %u auctioneer positions", (uint32)m_auctioneerPositions.size());
 }
 
 bool AhMarketService::TryTeleportToAuctioneer(Player* bot)
@@ -234,7 +235,7 @@ bool AhMarketService::TryTeleportToAuctioneer(Player* bot)
         bool ok = bot->TeleportTo(pos.mapId, pos.x, pos.y, pos.z, o, 0);
         if (ok)
         {
-            sLog.outString("TortoiseBots: AhMarket teleported bot %s to auctioneer %u at map %u %.1f %.1f %.1f",
+            TB_LOG_DEBUG("TortoiseBots: AhMarket teleported bot %s to auctioneer %u at map %u %.1f %.1f %.1f",
                 bot->GetName(), entry, pos.mapId, pos.x, pos.y, pos.z);
             return true;
         }
@@ -415,7 +416,7 @@ AhMarketService::PostResult AhMarketService::TryPostForBot(Player* bot, bool all
         // Success: record rate-limit timestamp and log via native BotLog.
         sRandomBotFacade.SetValue(bot->GetGUIDLow(), "ahMarketLastPost", 1, "", (int32)sPlayerbotAIConfig.ahMarketInterval * 2);
         sPlayerbotAIConfig.logEvent(ai, "AhMarket", proto->Name1, std::to_string(proto->ItemId));
-        sLog.outString("TortoiseBots: AhMarket bot %s posted %s x%u for %u buyout (deposit %u) via auctioneer %s",
+        TB_LOG_DEBUG("TortoiseBots: AhMarket bot %s posted %s x%u for %u buyout (deposit %u) via auctioneer %s",
             bot->GetName(), proto->Name1.c_str(), count, buyout, deposit, auctioneer->GetName());
 
         return PostResult::Posted;
@@ -485,11 +486,11 @@ void AhMarketService::ReloadOverrides()
             ov.max_amount = std::max(ov.min_amount, f[4].GetUInt32());
             m_overrides[itemId] = ov;
         } while (result->NextRow());
-        sLog.outString("TortoiseBots: AhMarket loaded %zu item overrides from ahbot_items", m_overrides.size());
+        TB_LOG_BASIC("TortoiseBots: AhMarket loaded %zu item overrides from ahbot_items", m_overrides.size());
     }
     else
     {
-        sLog.outString("TortoiseBots: AhMarket no overrides in ahbot_items or table not found");
+        TB_LOG_BASIC("TortoiseBots: AhMarket no overrides in ahbot_items or table not found");
     }
 }
 
@@ -522,7 +523,7 @@ void AhMarketService::RebuildMarket(bool all)
 {
     m_pendingRebuild = all ? 2 : 1;
     m_phase = Phase::Idle;
-    sLog.outString("TortoiseBots: AhMarket scheduled market rebuild (all=%u)", all ? 1 : 0);
+    TB_LOG_DETAIL("TortoiseBots: AhMarket scheduled market rebuild (all=%u)", all ? 1 : 0);
 }
 
 std::string AhMarketService::GetStatus() const
@@ -631,7 +632,7 @@ void AhMarketService::EnsureSourcesLoaded()
         do { m_vendorItems.push_back(res->Fetch()[0].GetUInt32()); } while (res->NextRow());
     }
 
-    sLog.outString("TortoiseBots: AhMarket loaded generation sources: %zu crafts, %zu vendor items",
+    TB_LOG_BASIC("TortoiseBots: AhMarket loaded generation sources: %zu crafts, %zu vendor items",
         crafts.size(), m_vendorItems.size());
 }
 
@@ -900,7 +901,7 @@ bool AhMarketService::BuyAuctionCandidate(AuctionEntry* auction, AuctionHouseObj
         ? BotActivity::Grinding : BotActivity::Idle;
     BotActivityLeaseManager::Instance().Release(buyer->GetGUIDLow(), BotActivity::Trading, restore);
     ++m_totalBought;
-    sLog.outString("TortoiseBots: AhMarket buyer %s placed %s on auc %u (item %s x%u) for %u",
+    TB_LOG_DEBUG("TortoiseBots: AhMarket buyer %s placed %s on auc %u (item %s x%u) for %u",
         buyer->GetName(), canBuyout ? "buyout" : "bid", auction->Id, proto->Name1.c_str(), count, targetPrice);
 
     return true;
@@ -1344,7 +1345,7 @@ void AhMarketService::Update(uint32_t diff)
         m_nextIndex = (start + 1) % eligible.size();
 
     if (posted || teleported)
-        sLog.outString("TortoiseBots: AhMarket tick posted %u/%u teleported %u (eligible %u, auctioneers %u)",
+        TB_LOG_DEBUG("TortoiseBots: AhMarket tick posted %u/%u teleported %u (eligible %u, auctioneers %u)",
             posted, batch, teleported, (uint32)eligible.size(), (uint32)m_auctioneerPositions.size());
 }
 

@@ -20,6 +20,7 @@
 #ifndef MANGOSSERVER_LFTMGR_H
 #error "TortoiseBots LFT fill requires Penqle core #416 (LFTMgr.h)"
 #endif
+#include "../host/ModuleLog.h"
 
 #include <algorithm>
 #include <cctype>
@@ -137,10 +138,10 @@ void LftBotFillService::Initialize()
 
     if (!sPlayerbotAIConfig.enabled || !sPlayerbotAIConfig.randomBotLftEnabled)
     {
-        sLog.outString("TortoiseBots: LFT fill disabled (ai %u lft %u)", sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotLftEnabled);
+        TB_LOG_BASIC("TortoiseBots: LFT fill disabled (ai %u lft %u)", sPlayerbotAIConfig.enabled, sPlayerbotAIConfig.randomBotLftEnabled);
         return;
     }
-    sLog.outString("TortoiseBots: LFT fill enabled interval %u max %u (observe GetQueuedPlayers, native QueuePlayer/offers, reconcile)",
+    TB_LOG_BASIC("TortoiseBots: LFT fill enabled interval %u max %u (observe GetQueuedPlayers, native QueuePlayer/offers, reconcile)",
         sPlayerbotAIConfig.randomBotLftUpdateInterval, sPlayerbotAIConfig.randomBotLftMaxFillsPerInterval);
 }
 
@@ -222,7 +223,7 @@ void LftBotFillService::ReconcilePending(bool cancelAll, std::vector<std::string
         {
             sLFTMgr.LeaveQueue(guid);
             ClearForcedRole(guidLow);
-            sLog.outString("TortoiseBots: LFT fill reconcile cancel bot %u (no human waiting, cancelAll)", guidLow);
+            TB_LOG_DETAIL("TortoiseBots: LFT fill reconcile cancel bot %u (no human waiting, cancelAll)", guidLow);
             toErase.push_back(guidLow);
             continue;
         }
@@ -235,7 +236,7 @@ void LftBotFillService::ReconcilePending(bool cancelAll, std::vector<std::string
             {
                 sLFTMgr.LeaveQueue(guid);
                 ClearForcedRole(guidLow);
-                sLog.outString("TortoiseBots: LFT fill reconcile cancel bot %u instance %s (no longer active)", guidLow, inst.c_str());
+                TB_LOG_DETAIL("TortoiseBots: LFT fill reconcile cancel bot %u instance %s (no longer active)", guidLow, inst.c_str());
                 toErase.push_back(guidLow);
             }
         }
@@ -272,7 +273,7 @@ void LftBotFillService::AcceptPendingOffers()
         // World-thread only generic core API (PR #416). Reuses native offer accept.
         bool ok = sLFTMgr.AcceptOffer(guid);
         if (ok)
-            sLog.outString("TortoiseBots: LFT fill bot %s (%s) accepted offer (pending %u)", bot->GetName(), guid.GetString().c_str(), (uint32)m_pending.size());
+            TB_LOG_DETAIL("TortoiseBots: LFT fill bot %s (%s) accepted offer (pending %u)", bot->GetName(), guid.GetString().c_str(), (uint32)m_pending.size());
     }
 }
 
@@ -544,7 +545,7 @@ void LftBotFillService::Update(uint32_t diff)
 
                 ++filledThisTick;
                 const char* roleStr = (needRole == LFT_ROLE_TANK ? "tank" : (needRole == LFT_ROLE_HEALER ? "heal" : "dps"));
-                sLog.outString("TortoiseBots: LFT fill queued bot %s (%s) level %u team %u %s for instance %s role %s (authoritative range %u-%u, pending %u)",
+                TB_LOG_DETAIL("TortoiseBots: LFT fill queued bot %s (%s) level %u team %u %s for instance %s role %s (authoritative range %u-%u, pending %u)",
                     chosen->GetName(), chosen->GetObjectGuid().GetString().c_str(), chosen->GetLevel(), chosen->GetTeam(),
                     chosen->IsHardcore() ? "hardcore" : "softcore", instance.c_str(), roleStr, low, high, (uint32)m_pending.size());
             }
@@ -552,7 +553,7 @@ void LftBotFillService::Update(uint32_t diff)
     }
 
     if (filledThisTick)
-        sLog.outString("TortoiseBots: LFT fill tick queued %u (max %u) activeInstances %u", filledThisTick, maxPerInterval, (uint32)activeInstances.size());
+        TB_LOG_DEBUG("TortoiseBots: LFT fill tick queued %u (max %u) activeInstances %u", filledThisTick, maxPerInterval, (uint32)activeInstances.size());
 }
 
 void LftBotFillService::Shutdown()

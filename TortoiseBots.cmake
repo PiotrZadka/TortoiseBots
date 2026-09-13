@@ -69,6 +69,7 @@ if(TORTOISE_MODULE_CMAKE_PHASE STREQUAL "DISCOVERY")
 
   set(TORTOISEBOTS_HOST_SRC
     "${TORTOISEBOTS_ROOT}/host/Module.cpp"
+    "${TORTOISEBOTS_ROOT}/host/ModuleLog.cpp"
     "${TORTOISEBOTS_ROOT}/host/BotHostAdapter.cpp"
     "${TORTOISEBOTS_ROOT}/host/BotSessionAdapter.cpp"
     "${TORTOISEBOTS_ROOT}/host/BotChatAdapter.cpp"
