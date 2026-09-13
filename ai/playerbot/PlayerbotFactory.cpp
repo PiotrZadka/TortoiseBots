@@ -2628,7 +2628,9 @@ void PlayerbotFactory::InitTradeSkills()
 
         if (firstSkills.empty() || secondSkills.empty())
         {
-            switch (urand(0, 6))
+            // Four pairs below: (0, 6) left three casters in seven without any profession
+            // (firstSkill and secondSkill stayed 0, SetRandomSkill(0) is a no-op).
+            switch (urand(0, 3))
             {
             case 0:
                 firstSkill = SKILL_HERBALISM;
