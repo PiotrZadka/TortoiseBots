@@ -372,6 +372,14 @@ bool ChooseTravelTargetAction::SetBestTarget(Player* requester, TravelTarget* ta
                         continue;
                     }
 
+                    AreaTableEntry const* area = position->GetArea();
+                    uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
+                    if (zoneId == 5536 || zoneId == 5225)
+                    {
+                        ai->TellDebug(requester, "Skipping " + destination->GetTitle() + " - custom starting zone", "debug travel");
+                        continue;
+                    }
+
                     int32 posAreaLevel = position->GetAreaLevel();
                     if (posAreaLevel > 0 && posAreaLevel > (int32)bot->GetLevel() + 5)
                     {

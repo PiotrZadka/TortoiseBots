@@ -364,6 +364,25 @@ RandomBotService::AutoCreateCharResult RandomBotService::TryCreateCharacterOnAcc
         CharacterCreateOutcome outcome = CharacterCreation::CreateCharacter(accountId, info);
         if (outcome.result == CHAR_CREATE_SUCCESS)
         {
+            if (race == RACE_GOBLIN)
+            {
+                CharacterDatabase.PExecute(
+                    "UPDATE characters SET map = 1, zone = 14, position_x = -618.518, position_y = -4251.67, position_z = 38.718, orientation = 0 WHERE guid = '%u'",
+                    outcome.guid.GetCounter());
+                CharacterDatabase.PExecute(
+                    "REPLACE INTO character_homebind (guid, map, zone, position_x, position_y, position_z) VALUES ('%u', 1, 14, -618.518, -4251.67, 38.718)",
+                    outcome.guid.GetCounter());
+            }
+            else if (race == RACE_HIGH_ELF)
+            {
+                CharacterDatabase.PExecute(
+                    "UPDATE characters SET map = 0, zone = 12, position_x = -8949.95, position_y = -132.493, position_z = 83.5312, orientation = 0 WHERE guid = '%u'",
+                    outcome.guid.GetCounter());
+                CharacterDatabase.PExecute(
+                    "REPLACE INTO character_homebind (guid, map, zone, position_x, position_y, position_z) VALUES ('%u', 0, 12, -8949.95, -132.493, 83.5312)",
+                    outcome.guid.GetCounter());
+            }
+
             m_candidates.push_back({accountId, outcome.guid});
             m_ageMs.push_back(0);
             m_strategyAgeMs.push_back(0);
