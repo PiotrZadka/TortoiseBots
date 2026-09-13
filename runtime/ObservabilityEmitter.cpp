@@ -552,33 +552,51 @@ void ObservabilityEmitter::Update(uint32 diff)
         track.lastSeenMs = nowMs;
         AddStateTime(state, diff);
 
-        float dx = bot->GetPositionX() - track.lastX;
-        float dy = bot->GetPositionY() - track.lastY;
-        float deltaDist = std::sqrt(dx * dx + dy * dy);
-
-        // Anomaly 1: stuck while an active movement generator owns the bot.
-        if (state == STATE_MOVING && deltaDist < 0.5f)
-        {
-            track.stationaryMovementMs += diff;
-            if (track.stationaryMovementMs >= 8000 && !track.stuckReported)
-            {
-                track.stuckReported = true;
-                std::ostringstream dss;
-                dss << "Coordinates stationary for " << (track.stationaryMovementMs / 1000.0f)
-                    << "s while in active movement state";
-                EmitAnomaly("BOT_STUCK", "WARN", bot, dss.str(), "",
-                            FormatStrategies(ai), "move");
-            }
-        }
-        else
+        // Anomaly 1: stuck while an active movement generator owns the bot. The
+        // displacement is judged once a second against the position sampled a second
+        // earlier. Per world tick a running bot moves only ~0.35 yd, so a per-tick
+        // comparison against 0.5 yd counted every bot that kept walking for 8 s as
+        // "stuck" - four fifths of all anomalies on a realm with 20 low-level bots.
+        if (state != STATE_MOVING)
         {
             track.stationaryMovementMs = 0;
             track.stuckReported = false;
         }
-
-        track.lastX = bot->GetPositionX();
-        track.lastY = bot->GetPositionY();
-        track.lastZ = bot->GetPositionZ();
+        if (track.lastSampleMs == 0 || nowMs - track.lastSampleMs >= 1000)
+        {
+            uint32 const elapsed = track.lastSampleMs ? nowMs - track.lastSampleMs : 0;
+            // A gap of several seconds between two samples is the world thread
+            // stalling (terrain or grid load), not the bot: nothing moved because
+            // nothing ticked. Such a sample is taken but not judged - in the first
+            // measurement three bots in three different zones were reported stuck
+            // for exactly the same 15.4 s, which was one stall.
+            bool const usable = elapsed > 0 && elapsed <= 5000;
+            float dx = bot->GetPositionX() - track.lastX;
+            float dy = bot->GetPositionY() - track.lastY;
+            float deltaDist = std::sqrt(dx * dx + dy * dy);
+            if (state == STATE_MOVING && usable && deltaDist < 0.5f)
+            {
+                track.stationaryMovementMs += elapsed;
+                if (track.stationaryMovementMs >= 8000 && !track.stuckReported)
+                {
+                    track.stuckReported = true;
+                    std::ostringstream dss;
+                    dss << "Coordinates stationary for " << (track.stationaryMovementMs / 1000.0f)
+                        << "s while in active movement state";
+                    EmitAnomaly("BOT_STUCK", "WARN", bot, dss.str(), "",
+                                FormatStrategies(ai), "move");
+                }
+            }
+            else if (state == STATE_MOVING && usable)
+            {
+                track.stationaryMovementMs = 0;
+                track.stuckReported = false;
+            }
+            track.lastX = bot->GetPositionX();
+            track.lastY = bot->GetPositionY();
+            track.lastZ = bot->GetPositionZ();
+            track.lastSampleMs = nowMs;
+        }
 
         // Anomaly 2: combat target unreachable / out of line of sight.
         Unit* combatTarget = bot->GetSelectedUnit();

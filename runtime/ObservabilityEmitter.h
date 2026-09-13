@@ -126,6 +126,7 @@ private:
         uint8 stateIndex = 0;
         uint32 stationaryMovementMs = 0;
         bool stuckReported = false;
+        uint32 lastSampleMs = 0;      // when lastX/lastY were sampled (once a second)
 
         uint64 unreachableTargetGuid = 0;
         uint32 unreachableDurationMs = 0;
