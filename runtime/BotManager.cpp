@@ -226,17 +226,24 @@ bool BotManager::RelocateHopelessBot(::Player* bot)
     // A bot below level 10 belongs in its starting area: its quests are there, and any
     // capital the picker would choose lies behind zones it cannot cross alive (a level-6
     // dwarf sent to Stormwind walks the Burning Steppes to reach Coldridge Valley - or,
-    // from Darnassus, cannot reach it at all and dies or spins on the spot). Home bind.
+    // from Darnassus, cannot reach it at all and dies or spins on the spot). The race
+    // start, not the home bind: the bind is wherever the character was last bound, and
+    // on a live realm bot binds sat in the starting zones of other races (an orc bound
+    // at Northshire Abbey was sent there after its deaths, straight into the guards).
     if (bot->GetLevel() < 10)
     {
-        if (!bot->TeleportToHomebind(0, false))
+        PlayerInfo const* info = sObjectMgr.GetPlayerInfo(bot->GetRace(), bot->GetClass());
+        bool moved = info && bot->TeleportTo(info->mapId, info->positionX, info->positionY, info->positionZ, info->orientation);
+        if (!moved)
+            moved = bot->TeleportToHomebind(0, false);
+        if (!moved)
         {
-            sLog.outError("TortoiseBots: hopeless-death relocation to home bind failed for bot %s, retaining position", bot->GetName());
+            sLog.outError("TortoiseBots: hopeless-death relocation to the starting area failed for bot %s, retaining position", bot->GetName());
             return false;
         }
         if (deathCountValue)
             deathCountValue->Reset();
-        sLog.outString("TortoiseBots: relocated hopeless bot %s level %u after %u deaths from area level %d to its home bind",
+        sLog.outString("TortoiseBots: relocated hopeless bot %s level %u after %u deaths from area level %d to its starting area",
             bot->GetName(), bot->GetLevel(), deathCount, areaLevel);
         return true;
     }
