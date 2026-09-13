@@ -30,6 +30,7 @@ actual files included in a build.
 | `cmangos/mangos-classic@9b682be` | Root `LICENSE`: GPL-2.0 text | Host/API patterns, mostly reimplemented | No copied body is identified by the current provenance entries; if one is added, record the exact grant variant |
 | `mangoszero/server@1817ae1` | Root `LICENSE`: GPL-3.0 text | Lifecycle patterns, recorded as reimplemented | Compatible as a reference; any future copied body must retain its grant and notices |
 | `mod-playerbots/mod-playerbots@5397110cba48` | Root `LICENSE`: GPL-2.0 text; sampled ported source headers grant version 2 or later | Modern generic strategies and nine class contexts | Headered GPL-2.0-or-later files can move to GPLv3-compatible terms; audit all copied/ported files rather than extrapolating from the sample |
+| `mod-playerbots/mod-playerbots@b6696bdb` (data only) | Root `LICENSE`: GPL-2.0 text; `data/sql/playerbots/base/ai_playerbot_texts.sql` carries no file header | Full `ai_playerbot_texts` seed (1,739 rows) ported as `data/sql/world/20260913090000_world.sql`, INSERT-only | **Unresolved:** headerless data file, exact grant variant (only vs or-later) not established from the file itself; release gate applies before distribution |
 | `tortoise-wow/tortoise-wow` | Root `LICENSE`: AGPL-3.0 | Target core | The combined build must satisfy AGPL-3.0 and every included module component's compatible terms |
 
 ## Release gate

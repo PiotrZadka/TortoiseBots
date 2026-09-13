@@ -1479,3 +1479,44 @@ Local validation:
 - `bash tools/verify_tortoise_surface.sh` (exit code 0).
 - `bash tools/verify_penqle_host_contract.sh --core ../tortoise-wow` (exit code 0).
 - Docker native static builder `./dev/build-playerbots` passed (`[100%] Built target mangosd`).
+
+## Bot text seed + cast fail reason — 2026-09-13
+
+Feature: Full `ai_playerbot_texts` seed so bots speak sentences instead of raw
+keys (`cast_spell_command_error`, `quest_accepted`, travel chatter); cast
+failure now keeps the engine reason via a native `cast_spell_command_error_reason` row.
+
+Source repository: `mod-playerbots/mod-playerbots`
+
+Source commit: `b6696bdbd3740e575598d167d69f39f68cc0b907` (local
+`playerbots-references/mod-playerbots` checkout; remote HEAD identical)
+
+Source files:
+- `data/sql/playerbots/base/ai_playerbot_texts.sql` (1,739 rows, ids 1-1739)
+
+Copied / ported / independently reimplemented:
+- Data-only port to `data/sql/world/20260913090000_world.sql`: row tuples copied
+  verbatim, donor `DROP TABLE`/`CREATE TABLE` header deliberately omitted so the
+  schema stays owned by `20260824090000_world.sql`; `INSERT IGNORE` keeps local
+  customizations and makes re-application idempotent. Plus one native row 1740
+  (`Cannot cast %spell (%fail_reason)`).
+- Code: `ai/playerbot/strategy/actions/CastCustomSpellAction.cpp` can-cast
+  failure path now uses the shim reason string directly (no bogus text-table
+  lookup of plain English) and picks the `_reason` key when a reason exists.
+  Previously `%fail_reason` was computed then discarded by a reason-less template.
+
+Reason: Empty table made `GetBotText(name, placeholders)` fall back to the raw
+key (`PlayerbotTextMgr.cpp`), so every bot text leaked as code words; combined
+with `RandomBotSayWithoutMaster = 1` they surfaced in public `/s`. Full seed
+chosen over curated subset per operator call: noise control stays in
+`aiplayerbot.conf` (`EnableBroadcasts` master switch, `BroadcastToWorld` /
+`BroadcastToGeneralGlobalChance` throttles, per-event `BroadcastChance* = 0`).
+
+Local validation:
+- Row-count audit: 1,739 donor tuples in, 1,740 out; key spot-checks
+  (`cast_spell_command_error`, `quest_accepted`,
+  `broadcast_quest_accepted_generic` x39, `thunderfury_spam` x36); no
+  `DROP`/`CREATE` in migration; zero non-BMP chars (utf8mb3-safe).
+- `python3 tools/verify_all.sh` + `git diff --check` (see commit).
+- Module rebuild pending (see commit); live check pending: texts-loaded count in
+  server log, raw keys gone in game, reason visible on failed casts.
