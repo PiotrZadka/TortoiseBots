@@ -696,7 +696,7 @@ void MovementAction::UpdateFlyingState(
 {
 }
 
-void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bool masterWalking)
+bool MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bool masterWalking)
 {
     MotionMaster& mm = *bot->GetMotionMaster();
 
@@ -705,6 +705,13 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
     ForcedMovement moveMode = masterWalking ? FORCED_MOVEMENT_WALK : FORCED_MOVEMENT_RUN;
 
     std::vector<WorldPosition> path = movePath.GetPointPath();
+
+    // A path that leads nowhere - empty, or only the point the bot stands on - must not be
+    // launched: the core rejects a one-point spline (MoveSplineInitArgs::Validate, path[0]
+    // is always the current position) and the caller would ask for the same move every
+    // tick. Report the failure instead, so the travel target counts a retry and cools down.
+    if (path.size() < 2)
+        return false;
 
     if (!generatePath || !bot->IsFlying())
     {
@@ -727,6 +734,8 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
     }
 
     GeneratePathAvoidingHazards(path);
+    if (path.size() < 2)
+        return false; // the hazard rewrite left nothing to walk
 
     std::vector<G3D::Vector3> pointPath = WorldPosition().toPointsArray(path);
     float size = WorldPosition().GetPathLength(path);
@@ -773,6 +782,7 @@ void MovementAction::DispatchMovement(TravelPath movePath, bool generatePath, bo
             moveOptions);
     }
     WaitForReach(size);
+    return true;
 }
 
 
@@ -1016,7 +1026,11 @@ bool MovementAction::MoveTo2(const WorldPosition& endPos, bool idle, bool react,
     }
     // END DEBUG
 
-    DispatchMovement(movePath, generatePath, masterWalking);
+    if (!DispatchMovement(movePath, generatePath, masterWalking))
+    {
+        lastMove.setPath(TravelPath());
+        return false; // nowhere to go: let the caller retry later or drop the target
+    }
 
     if (!idle)
         ClearIdleState();
