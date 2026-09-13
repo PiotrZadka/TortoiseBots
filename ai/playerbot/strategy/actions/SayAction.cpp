@@ -96,7 +96,7 @@ bool SayAction::Execute(Event& event)
     }
 
     // load text based on chance
-    if (!sPlayerbotTextMgr.GetBotText(qualifier, text, placeholders))
+    if (!sPlayerbotTextMgr.GetBotText(qualifier, text, placeholders) || text.empty())
         return false;
 
     if (text.find("/y ") == 0)
@@ -977,6 +977,9 @@ bool ChatReplyAction::HandleLFGQuestsReply(Player* bot, ChatChannelSource chatCh
 
 bool ChatReplyAction::SendGeneralResponse(Player* bot, ChatChannelSource chatChannelSource, std::string responseMessage, std::string name)
 {
+    if (responseMessage.empty())
+        return false;
+
     // send responds
     switch (chatChannelSource)
     {

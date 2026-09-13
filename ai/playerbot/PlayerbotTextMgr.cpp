@@ -127,7 +127,7 @@ std::string PlayerbotTextMgr::GetBotText(ChatReplyType replyType, std::map<std::
 {
     if (botTexts.empty())
     {
-        sLog.outError("Can't get bot text reply %u! No bots texts loaded!", replyType);
+        sLog.outDetail("Can't get bot text reply %u! No bots texts loaded!", replyType);
         return "";
     }
     if (botTexts["reply"].empty())
