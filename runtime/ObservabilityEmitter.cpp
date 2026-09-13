@@ -672,6 +672,13 @@ void ObservabilityEmitter::EmitSnapshotCycle(std::vector<Player*> const& activeB
         snap.maxHp = bot->GetMaxHealth();
         snap.power = bot->GetPower(bot->GetPowerType());
         snap.maxPower = bot->GetMaxPower(bot->GetPowerType());
+        // Core stores rage x10 (0-1000); every other resource is already in
+        // display units. Normalize here so all consumers agree.
+        if (bot->GetPowerType() == POWER_RAGE)
+        {
+            snap.power /= 10;
+            snap.maxPower /= 10;
+        }
         snap.powerType = GetPowerTypeName(bot->GetPowerType());
         snap.mapId = bot->GetMapId();
         snap.zoneId = bot->GetZoneId();
