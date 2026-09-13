@@ -36,6 +36,7 @@
 #include "../host/ModuleLog.h"
 
 #include <algorithm>
+#include <ctime>
 
 namespace TortoiseBots {
 
@@ -191,8 +192,14 @@ bool TryRandomTeleport(::Player* bot, BotRecord const& record)
 }
 } // namespace
 
-bool BotManager::RelocateHopelessBot(::Player* bot)
+namespace {
+// Fail-closed eligibility shared by death-driven and time-driven rescue: a
+// random masterless ungrouped headless bot standing in a zone its level
+// cannot survive (same +5 tolerance the travel and quest gates use).
+// Unknown area levels fail closed. Pure predicates, no side effects.
+bool MisplacedBotEligible(::Player* bot, int32& areaLevelOut)
 {
+    areaLevelOut = 0;
     if (!sPlayerbotAIConfig.relocateHopelessDeaths)
         return false;
     if (!bot || !bot->GetSession() || !bot->GetSession()->IsHeadless())
@@ -201,35 +208,35 @@ bool BotManager::RelocateHopelessBot(::Player* bot)
         return false;
     if (bot->GetGroup())
         return false;
-    BotRecord* record = FindBot(bot->GetObjectGuid());
+    BotRecord* record = BotManager::Instance().FindBot(bot->GetObjectGuid());
     if (!record || !record->random || record->lifecycle != BotLifecycle::InWorld)
         return false;
     if (!record->masterGuid.IsEmpty())
         return false;
     if (sRandomBotFacade.IsPinnedBot(bot->GetGUIDLow()))
         return false;
-    ::PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
-    if (!ai || !ai->GetAiObjectContext())
-        return false;
-    auto* deathCountValue = ai->GetAiObjectContext()->GetValue<uint32>("death count");
-    uint32 deathCount = deathCountValue ? deathCountValue->Get() : 0;
-    if (deathCount < 2)
-        return false;
-    // Same +5 tolerance the travel and quest gates use: only a zone the bot
-    // cannot plausibly survive counts as hopeless. Unknown levels fail closed.
-    int32 areaLevel = 0;
     auto& travelMgr = MaNGOS::Singleton<ai::TravelMgr>::Instance();
+    int32 areaLevel = 0;
     if (!travelMgr.TryGetValidatedAreaLevel(bot->GetAreaId(), areaLevel) || areaLevel <= 0)
         return false;
     if (areaLevel <= (int32)bot->GetLevel() + 5)
         return false;
-    // A bot below level 10 belongs in its starting area: its quests are there, and any
-    // capital the picker would choose lies behind zones it cannot cross alive (a level-6
-    // dwarf sent to Stormwind walks the Burning Steppes to reach Coldridge Valley - or,
-    // from Darnassus, cannot reach it at all and dies or spins on the spot). The race
-    // start, not the home bind: the bind is wherever the character was last bound, and
-    // on a live realm bot binds sat in the starting zones of other races (an orc bound
-    // at Northshire Abbey was sent there after its deaths, straight into the guards).
+    areaLevelOut = areaLevel;
+    return true;
+}
+
+// Sweep cadence and patience: a check every few minutes, relocation only
+// after uninterrupted stranding, so briefly passing through is never caught.
+constexpr uint32_t STRANDED_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+constexpr time_t STRANDED_GRACE_SEC = 15 * 60;
+
+// Shared destination leg: below level 10 the bot belongs at its race start
+// (a capital the picker would choose lies behind zones it cannot cross
+// alive, and the home bind may sit in another race's zone). Home bind stays
+// as fallback. Otherwise a validated level-fitting point. Resets the death
+// count on success so the fresh start is not mistaken for a loop.
+bool TeleportMisplacedBot(::Player* bot, int32 areaLevel, const std::string& cause)
+{
     if (bot->GetLevel() < 10)
     {
         PlayerInfo const* info = sObjectMgr.GetPlayerInfo(bot->GetRace(), bot->GetClass());
@@ -238,28 +245,107 @@ bool BotManager::RelocateHopelessBot(::Player* bot)
             moved = bot->TeleportToHomebind(0, false);
         if (!moved)
         {
-            sLog.outError("TortoiseBots: hopeless-death relocation to the starting area failed for bot %s, retaining position", bot->GetName());
+            sLog.outError("TortoiseBots: misplaced-bot relocation to the starting area failed for bot %s, retaining position", bot->GetName());
             return false;
         }
-        if (deathCountValue)
-            deathCountValue->Reset();
-        sLog.outString("TortoiseBots: relocated hopeless bot %s level %u after %u deaths from area level %d to its starting area",
-            bot->GetName(), bot->GetLevel(), deathCount, areaLevel);
-        return true;
     }
-    ai::WorldPosition const* chosen = PickLevelFittingPoint(bot);
-    if (!chosen)
-        return false;
-    if (!bot->TeleportTo(chosen->getMapId(), chosen->getX(), chosen->getY(), chosen->getZ(), bot->GetOrientation(), 0))
+    else
     {
-        sLog.outError("TortoiseBots: hopeless-death relocation TeleportTo failed for bot %s, retaining position", bot->GetName());
-        return false;
+        ai::WorldPosition const* chosen = PickLevelFittingPoint(bot);
+        if (!chosen)
+            return false;
+        if (!bot->TeleportTo(chosen->getMapId(), chosen->getX(), chosen->getY(), chosen->getZ(), bot->GetOrientation(), 0))
+        {
+            sLog.outError("TortoiseBots: misplaced-bot relocation TeleportTo failed for bot %s, retaining position", bot->GetName());
+            return false;
+        }
     }
-    if (deathCountValue)
-        deathCountValue->Reset();
-    TB_LOG_DETAIL("TortoiseBots: relocated hopeless bot %s level %u after %u deaths from area level %d to map %u %.1f %.1f %.1f",
-        bot->GetName(), bot->GetLevel(), deathCount, areaLevel, chosen->getMapId(), chosen->getX(), chosen->getY(), chosen->getZ());
+    ::PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
+    if (ai && ai->GetAiObjectContext())
+    {
+        if (auto* deathCountValue = ai->GetAiObjectContext()->GetValue<uint32>("death count"))
+            deathCountValue->Reset();
+    }
+    sLog.outString("TortoiseBots: relocated %s %s level %u from area level %d",
+        cause.c_str(), bot->GetName(), bot->GetLevel(), areaLevel);
     return true;
+}
+} // namespace
+
+bool BotManager::RelocateHopelessBot(::Player* bot)
+{
+    int32 areaLevel = 0;
+    if (!MisplacedBotEligible(bot, areaLevel))
+        return false;
+    ::PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
+    if (!ai || !ai->GetAiObjectContext())
+        return false;
+    auto* deathCountValue = ai->GetAiObjectContext()->GetValue<uint32>("death count");
+    uint32 deathCount = deathCountValue ? deathCountValue->Get() : 0;
+    if (deathCount < 2)
+        return false;
+    return TeleportMisplacedBot(bot, areaLevel, "hopeless bot (" + std::to_string(deathCount) + " deaths)");
+}
+
+bool BotManager::RelocateStrandedBot(::Player* bot)
+{
+    int32 areaLevel = 0;
+    if (!MisplacedBotEligible(bot, areaLevel))
+        return false;
+    return TeleportMisplacedBot(bot, areaLevel, "stranded bot");
+}
+
+void BotManager::SweepStrandedBots(uint32_t diff)
+{
+    m_strandedSweepElapsedMs += diff;
+    if (m_strandedSweepElapsedMs < STRANDED_SWEEP_INTERVAL_MS)
+        return;
+    m_strandedSweepElapsedMs = 0;
+    if (!sPlayerbotAIConfig.relocateHopelessDeaths)
+    {
+        m_strandedSince.clear();
+        return;
+    }
+    time_t now = time(nullptr);
+    for (auto& [key, entry] : m_bots)
+    {
+        BotRecord& rec = entry.record;
+        ::Player* p = nullptr;
+        bool stranded = rec.random && rec.lifecycle == BotLifecycle::InWorld && rec.masterGuid.IsEmpty() &&
+            (p = sObjectAccessor.FindPlayer(rec.characterGuid)) != nullptr &&
+            p->GetSession() && p->GetSession()->IsHeadless() && p->IsInWorld() &&
+            !p->GetGroup() && !p->InBattleGround() && !p->IsBeingTeleported() &&
+            !sRandomBotFacade.IsPinnedBot(key);
+        if (stranded)
+        {
+            int32 areaLevel = 0;
+            auto& travelMgr = MaNGOS::Singleton<ai::TravelMgr>::Instance();
+            stranded = travelMgr.TryGetValidatedAreaLevel(p->GetAreaId(), areaLevel) && areaLevel > 0 &&
+                areaLevel > (int32)p->GetLevel() + 5;
+        }
+        if (!stranded)
+        {
+            m_strandedSince.erase(key);
+            continue;
+        }
+        auto it = m_strandedSince.find(key);
+        if (it == m_strandedSince.end())
+        {
+            m_strandedSince.emplace(key, now);
+            continue;
+        }
+        if (now - it->second < STRANDED_GRACE_SEC)
+            continue;
+        m_strandedSince.erase(it);
+        RelocateStrandedBot(p);
+    }
+    for (auto it = m_strandedSince.begin(); it != m_strandedSince.end();)
+    {
+        if (m_bots.find(it->first) == m_bots.end())
+            it = m_strandedSince.erase(it);
+        else
+            ++it;
+    }
 }
 
 // A Headless session must never render an owned bot as an account-level GM.
@@ -1194,6 +1280,7 @@ void BotManager::OnWorldUpdate(uint32_t diff)
     PlayerbotAI::ProcessDelayedPackets();
     sRandomBotFacade.SyncNativePlayers();
     UpdateBots(diff);
+    SweepStrandedBots(diff);
 
     if (m_autoTestEnabled)
         UpdateAutoTest(diff);
