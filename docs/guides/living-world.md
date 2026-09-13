@@ -48,9 +48,17 @@ Autonomous bots roam the open world, reacting dynamically to nearby players and 
 | :--- | :--- |
 | **Zone Exploration & Travel** | Bots take flight paths, ride zeppelins and boats, run along roads between towns, and use hearthstones to return to inns. |
 | **Grinding & Combat** | Bots seek out level-appropriate hostile mobs, pull with class-appropriate ranged abilities, execute standard rotations, and rest with food and water between fights. |
+| **Beginner Grinding (Level 1–4)** | Fresh bots in starter valleys (Valley of Trials, Camp Narache, Northshire, Coldridge, Shadowglen) target mobs up to their own level and are permitted to hunt coinless starter beasts (e.g. Mottled Boars, Scorpids, Plainstriders) while ignoring critters. |
 | **Questing & Progression** | Bots pick up quests from quest givers, track quest objectives (killing specific mobs or collecting items), and turn them in for XP and gold rewards. |
-| **Gathering & Professions** | Bots with Herbalism or Mining will path toward nearby herb and ore nodes in the world to harvest them. |
+| **Gathering & Professions** | Bots with Herbalism, Mining, or Skinning actively travel to resources and hunt skinning targets to gather materials for crafting and the Auction House. |
 | **Town Life & Immersion** | In towns, bots visit class trainers to learn new spell ranks, repair yellow/red durability gear at blacksmiths, vendor junk items, and wave or say hello when passing human players. |
+
+### Persistent Bot Initial Skills (`DisableRandomLevels = 1`)
+
+For servers configured to run persistent, organically leveling bots starting at level 1 (`AiPlayerbot.DisableRandomLevels = 1`):
+* **Weapon Skills:** Bots receive full class-compatible weapon proficiencies on their first login, scaled to their current level cap (e.g., 5/5 at level 1). This ensures melee and ranged attacks connect reliably instead of missing 80% of the time at 1/5 weapon skill.
+* **Trade Skills:** Bots receive two class-matched primary professions (e.g. Mining + Blacksmithing/Engineering for Warriors; Skinning + Leatherworking for Rogues; Herbalism + Alchemy for Casters) plus First Aid, Cooking, and Fishing.
+* **Persistence:** Seeding runs only once on initial login and is recorded in the character database, ensuring professions and skills are never re-rolled across server restarts.
 
 ---
 

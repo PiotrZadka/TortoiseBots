@@ -26,6 +26,7 @@ Targeting in TortoiseBots is governed by specialized value calculators rather th
 | **DPS (Single Target)** | `DpsTargetValue` | **Lowest Health First:** Priority 1 = Explicit `.bot action attack` target; Priority 2 = Raid Target Icon (**Skull**); Priority 3 = Non-CC attacker with the **lowest current health** to burn mobs down one by one. |
 | **DPS (AoE)** | `DpsAoeTargetValue` | **Highest Health First:** Targets the enemy with the **highest health** so damage-over-time (DoT) effects and cleaves tick for the longest possible duration. |
 | **Crowd Control** | `CcTargetValue` | **Smart Exclusions:** Evaluates mobs matching the assigned raid mark. Automatically excludes: (1) Current tank/DPS target, (2) Mobs with < 50% HP (won't waste CC on dying mobs), and (3) Mobs inside active AoE spell radiuses (e.g. *Blizzard*, *Consecration*). |
+| **Grind Target (Level 1–4)** | `GrindTravelDestination` | **Beginner Band Clamp:** Bots level 1–4 clamp the level ceiling to their own level and are permitted to target coinless starter beasts (e.g., boars, scorpids, plainstriders) while strictly excluding critters (`CREATURE_TYPE_CRITTER`). |
 | **Enemy Healer** | `EnemyHealerTargetValue` | Detects humanoid/creature enemies casting healing spells and surfaces them as high-priority interrupt/focus targets. |
 
 ---
@@ -83,6 +84,7 @@ Bot movement bridges native C++ AI directly to the core server's `MotionMaster`:
 | **Simultaneous Eat & Drink** | Out of combat, bots scan bags for Food (Item Category 11) and Drink (Item Category 59). If both health and mana are depleted, the bot consumes both simultaneously in a single rest phase. |
 | **Conjured Item Sharing** | Mages out of combat automatically conjure food and water stacks and trade them to mana-using party members who have low supplies. |
 | **Gear Upgrades & Scoring** | When `RandomGearUpgradeEnabled = 1`, the bot evaluates equipment by calculating spec-relevant stat weights (Strength/Agility for physical, Spell Power/Intellect for casters). Items with higher effective scores are equipped automatically. |
+| **Initial Skill & Profession Seeding** | On servers running persistent-level bots (`DisableRandomLevels = 1`), bots never pass through the legacy `Randomize()` pipeline. To avoid swinging with weapon skill 1/5 and having no trade skills, fresh random bots receive their full suite of class weapon skills (scaled to current level cap), First Aid, and two class-compatible primary professions once on initial login. |
 
 ---
 
