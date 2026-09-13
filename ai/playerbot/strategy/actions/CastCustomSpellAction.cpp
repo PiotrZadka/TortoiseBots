@@ -231,13 +231,28 @@ bool CastCustomSpellAction::Execute(Event& event)
     }
 
     SpellCastResult checkResult;
-    const bool canCast = gameObjectTarget ? ai->CanCastSpell(spell, gameObjectTarget, 0, true, false, false, false, &checkResult) : ai->CanCastSpell(spell, target, 0, true, itemTarget, false, false, false, &checkResult);
+    // An item in bags authorizes its own spell (potions, bandages, poisons are
+    // never in the spellbook). The engine CheckCast still validates level,
+    // cooldown, health and everything else.
+    const bool canCast = gameObjectTarget ? ai->CanCastSpell(spell, gameObjectTarget, 0, true, false, false, false, &checkResult) : ai->CanCastSpell(spell, target, 0, !itemTarget, itemTarget, false, false, false, &checkResult);
     if (!bot->GetTrader() && !canCast)
     {
+        // "Try again in a moment" is not information: the trigger refires on
+        // its own (chain-crafting handstitched goods hits GCD constantly), so
+        // retry quietly instead of announcing a failure nobody can act on.
+        if (checkResult == SPELL_FAILED_NOT_READY || checkResult == SPELL_FAILED_ITEM_NOT_READY ||
+            checkResult == SPELL_FAILED_SPELL_IN_PROGRESS)
+        {
+            SetDuration(sPlayerbotAIConfig.globalCoolDown);
+            return false;
+        }
         std::map<std::string, std::string> args;
         args["%spell"] = replyArgs["%spell"];
-        args["%fail_reason"] = BOT_TEXT2(GetSpellCastResultString(checkResult), args);
-        ai->TellPlayerNoFacing(requester, BOT_TEXT2("cast_spell_command_error", args));
+        std::string failReason = GetSpellCastResultString(checkResult);
+        if (failReason.empty())
+            return false;
+        args["%fail_reason"] = failReason;
+        ai->TellPlayerNoFacing(requester, BOT_TEXT2("cast_spell_command_error_reason", args));
         return false;
     }
 

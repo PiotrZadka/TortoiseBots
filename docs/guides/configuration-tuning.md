@@ -51,6 +51,7 @@ These flags control the behavior of autonomous random bots roaming the world:
 | `AiPlayerbot.RandomBotFormGuild` | `1` | `1` | Bots will buy guild charters, collect signatures from other bots, and found their own guilds. |
 | `AiPlayerbot.EnableGreet` | `1` | `1` | Bots wave or say hello when passing players in towns and roads. |
 | `AiPlayerbot.RandomBotShowHelmet` / `ShowCloak`| `1` | `1` | Renders helmets and cloaks on bots. |
+| `AiPlayerbot.RandomBotSayWithoutMaster` | `1` | `0` on quiet servers | Masterless bots say in `/s` what they would whisper to an owner (travel plans, cast failures). `0` keeps them silent unless owned. Needs restart. |
 
 ---
 
@@ -120,3 +121,18 @@ TortoiseBots.LogLevel = 2
 Errors (`sLog.outError`) are always written regardless of this setting. The level is re-read on `.reload config`, so it can be raised or lowered without a server restart.
 
 This setting is separate from the strategy AI's own action trace, which stays gated behind the `debug`/`debug action` bot strategies (`.bot strategy +debug`) rather than a server-wide config key.
+
+---
+
+## 7. Bot Chatter & Broadcasts
+
+Flavor and status lines come from the `ai_playerbot_texts` table (seeded by
+`data/sql/world/20260913090000_world.sql`). If bots speak raw keys such as
+`quest_accepted`, that table is empty — re-apply the migration and restart.
+Volume is controlled by these knobs (all need a restart):
+
+| Setting | Default | What It Does |
+| :--- | :---: | :--- |
+| `AiPlayerbot.EnableBroadcasts` | `1` | Master switch. `0` disables all quest/loot/kill/level-up/suggest broadcasts. |
+| `AiPlayerbot.BroadcastToWorldGlobalChance` / `BroadcastToGeneralGlobalChance` | `3000` | Main throttle on what reaches world/general chat (range `0`-`30000`). `0` re-routes most broadcasts away from that channel. |
+| `AiPlayerbot.BroadcastChance*` | varies | Per-event chance, e.g. `BroadcastChanceQuestAccepted`, `BroadcastChanceSuggestSell`. `0` disables that one class. Toxic/scam lines (`*Toxic*`, `*Thunderfury*`) ship at `0` already. |

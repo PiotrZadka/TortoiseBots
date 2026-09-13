@@ -661,9 +661,15 @@ inline CmangosScriptDevAIMgrAdapter sScriptDevAIMgr;
 // into one generic message.
 inline char const* GetSpellCastResultString(SpellCastResult res)
 {
+    // Wording mirrors the client's SpellCastResult strings (see core
+    // SpellDefines.h). Empty means "deliberately hidden" (DONT_REPORT and
+    // internal errors): callers must stay silent instead of announcing.
     switch (res)
     {
-    case SPELL_FAILED_NOT_READY: return "spell not ready";
+    case SPELL_FAILED_DONT_REPORT:
+    case SPELL_FAILED_ERROR: return "";
+    case SPELL_FAILED_NOT_READY:
+    case SPELL_FAILED_ITEM_NOT_READY: return "item or spell is not ready yet";
     case SPELL_FAILED_REQUIRES_SPELL_FOCUS: return "requires spell focus";
     case SPELL_FAILED_REQUIRES_AREA: return "cannot cast here";
     case SPELL_FAILED_EQUIPPED_ITEM_CLASS:
@@ -680,6 +686,29 @@ inline char const* GetSpellCastResultString(SpellCastResult res)
     case SPELL_FAILED_NOT_MOUNTED: return "must be mounted";
     case SPELL_FAILED_PREVENTED_BY_MECHANIC: return "prevented by a mechanic";
     case SPELL_FAILED_BAD_TARGETS: return "invalid target";
+    case SPELL_FAILED_ALREADY_AT_FULL_HEALTH: return "already at full health";
+    case SPELL_FAILED_ALREADY_AT_FULL_POWER: return "already at full power";
+    case SPELL_FAILED_NOT_KNOWN: return "spell not learned";
+    case SPELL_FAILED_LEVEL_REQUIREMENT: return "not high enough level";
+    case SPELL_FAILED_LOWLEVEL: return "target is too low level";
+    case SPELL_FAILED_CASTER_DEAD: return "caster is dead";
+    case SPELL_FAILED_TARGETS_DEAD: return "target is dead";
+    case SPELL_FAILED_INTERRUPTED:
+    case SPELL_FAILED_INTERRUPTED_COMBAT: return "interrupted";
+    case SPELL_FAILED_STUNNED: return "stunned";
+    case SPELL_FAILED_CONFUSED: return "confused";
+    case SPELL_FAILED_FLEEING: return "fleeing";
+    case SPELL_FAILED_SILENCED: return "silenced";
+    case SPELL_FAILED_ROOTED: return "unable to move";
+    case SPELL_FAILED_PACIFIED: return "pacified";
+    case SPELL_FAILED_IMMUNE: return "target is immune";
+    case SPELL_FAILED_SPELL_IN_PROGRESS: return "another action is in progress";
+    case SPELL_FAILED_TRY_AGAIN: return "failed attempt, try again";
+    case SPELL_FAILED_FIZZLE: return "fizzled";
+    case SPELL_FAILED_NO_CHARGES_REMAIN: return "no charges remain";
+    case SPELL_FAILED_TARGET_IN_COMBAT: return "target can't be in combat";
+    case SPELL_FAILED_TOO_CLOSE: return "target too close";
+    case SPELL_FAILED_NOPATH: return "no path available";
     default: return "spell cast failed";
     }
 }
