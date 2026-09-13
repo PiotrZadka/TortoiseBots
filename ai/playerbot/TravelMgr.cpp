@@ -587,6 +587,16 @@ bool GrindTravelDestination::IsPossible(const PlayerTravelInfo& info) const
 
     int32 maxLevel = std::max(botLevel * (0.5f + levelMod), botLevel - 5.0f + levelBoost);
 
+    // Beginners (level 1-4): the band above truncates to 0 at level 1 (and to 1-2 at
+    // levels 2-4), and the gold rule below rejects every beast - so a fresh bot in an
+    // enclosed starting valley (Valley of Trials, Camp Narache: nothing but boars and
+    // scorpids, gold 0) never finds a single grind target and idles at the campfire,
+    // which RpgTravelDestination forbids it to leave below level 5. Let beginners fight
+    // their own level and coinless starter beasts; from level 5 on nothing changes.
+    bool const beginner = botLevel <= 4;
+    if (beginner)
+        maxLevel = std::max(maxLevel, botLevel);
+
     if ((int32)cInfo->level_max > maxLevel) //@lvl5 max = 3, @lvl60 max = 57
         return false;
 
@@ -595,7 +605,7 @@ bool GrindTravelDestination::IsPossible(const PlayerTravelInfo& info) const
     if ((int32)cInfo->level_max < minLevel) //@lvl5 min = 3, @lvl60 max = 50
         return false;
 
-    if (cInfo->gold_min == 0)
+    if (cInfo->gold_min == 0 && (!beginner || cInfo->type == CREATURE_TYPE_CRITTER))
         return false;
 
     if (cInfo->rank > CREATURE_ELITE_NORMAL && !info.GetBoolValue("can fight elite"))
