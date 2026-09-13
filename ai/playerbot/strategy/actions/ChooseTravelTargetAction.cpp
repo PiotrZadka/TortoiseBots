@@ -4,6 +4,7 @@
 #include "ChooseTravelTargetAction.h"
 #include "playerbot/PlayerbotAIConfig.h"
 #include "playerbot/strategy/values/TravelValues.h"
+#include "playerbot/TravelNode.h"
 #include "playerbot/strategy/values/SharedValueContext.h"
 #include "playerbot/strategy/values/GuildValues.h"
 #include "playerbot/strategy/values/FreeMoveValues.h"
@@ -332,6 +333,47 @@ inline std::string PrintPartion(uint32 sqPartition)
 }
 
 //Sets the target to the best destination.
+// A destination whose walking route crosses a zone the bot cannot survive is no
+// destination: the gates in SetBestTarget only look at the area of the target itself
+// (a level-6 bot standing in Stormwind happily picks a Coldridge Valley quest and walks
+// the Burning Steppes to get there). The route is the travel-node route the bot would
+// follow; a route that does not exist at all (another continent without a transfer) is
+// rejected too. Short hops on the same map are not checked - no A* for the everyday case.
+static bool RouteIsSurvivable(Player* bot, WorldPosition* position, std::string& blocker)
+{
+    WorldPosition start(bot);
+    if (start.getMapId() == position->getMapId() && start.distance(*position) < 1000.0f)
+        return true;
+    std::vector<WorldPosition> beginPath, endPath;
+    TravelNodeRoute route = sTravelNodeMap.getRoute(start, *position, beginPath, endPath, bot);
+    if (route.isEmpty())
+    {
+        if (start.getMapId() != position->getMapId())
+        {
+            blocker = "no route to that continent";
+            return false;
+        }
+        return true; // same map without a node route: the pathfinder handles it directly
+    }
+    int32 const limit = (int32)bot->GetLevel() + 5;
+    bool ok = true;
+    for (TravelNode* node : route.getNodes())
+    {
+        WorldPosition* p = node ? node->getPosition() : nullptr;
+        if (!p)
+            continue;
+        int32 const level = p->GetAreaLevel();
+        if (level > 0 && level > limit)
+        {
+            blocker = p->getAreaName(true, true) + " (level " + std::to_string(level) + ")";
+            ok = false;
+            break;
+        }
+    }
+    route.cleanTempNodes();
+    return ok;
+}
+
 bool ChooseTravelTargetAction::SetBestTarget(Player* requester, TravelTarget* target, PartitionedTravelList& partitionedList, bool onlyActive)
 {
     bool distanceCheck = true;
@@ -382,6 +424,19 @@ bool ChooseTravelTargetAction::SetBestTarget(Player* requester, TravelTarget* ta
                     if (bot->GetLevel() <= 5 && position->distance(bot) > 1500.0f)
                     {
                         ai->TellDebug(requester, "Skipping " + destination->GetTitle() + " - too far for starting level", "debug travel");
+                        continue;
+                    }
+
+                    std::string blocker;
+                    if (!RouteIsSurvivable(bot, position, blocker))
+                    {
+                        ai->TellDebug(requester, "Skipping " + destination->GetTitle() + " - route crosses " + blocker, "debug travel");
+                        if (sPlayerbotAIConfig.hasLog("travel_route_gate.csv"))
+                        {
+                            std::ostringstream out;
+                            out << bot->GetName() << "," << bot->GetLevel() << "," << destination->GetTitle() << "," << blocker;
+                            sPlayerbotAIConfig.log("travel_route_gate.csv", out.str().c_str());
+                        }
                         continue;
                     }
                 }
