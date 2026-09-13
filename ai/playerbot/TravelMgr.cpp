@@ -443,6 +443,11 @@ bool RpgTravelDestination::IsPossible(const PlayerTravelInfo& info) const
     WorldPosition* point = GetClosestPoint(info.getPosition());
     if (point)
     {
+        AreaTableEntry const* area = point->GetArea();
+        uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
+        if (zoneId == 5536 || zoneId == 5225)
+            return false;
+
         int32 destAreaLevel = point->GetAreaLevel();
         if (destAreaLevel > 0 && destAreaLevel > (int32)info.GetLevel() + 5)
             return false;
@@ -547,6 +552,12 @@ AreaTableEntry const* ZoneTravelDestination::GetArea() const
 bool ExploreTravelDestination::IsPossible(const PlayerTravelInfo& info) const
 {
     AreaTableEntry const* area = GetArea();
+    if (!area)
+        return false;
+
+    uint32 zoneId = area->ZoneId ? area->ZoneId : area->Id;
+    if (zoneId == 5536 || zoneId == 5225)
+        return false;
 
     if (GetLevel() && (uint32)GetLevel() > info.GetLevel() && info.GetLevel() < DEFAULT_MAX_LEVEL)
         return false;
@@ -615,6 +626,11 @@ bool GrindTravelDestination::IsPossible(const PlayerTravelInfo& info) const
     WorldPosition* point = GetClosestPoint(info.getPosition());
     if (point)
     {
+        AreaTableEntry const* area = point->GetArea();
+        uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
+        if (zoneId == 5536 || zoneId == 5225)
+            return false;
+
         int32 destAreaLevel = point->GetAreaLevel();
         if (destAreaLevel > 0 && destAreaLevel > (int32)info.GetLevel() + 5)
             return false;

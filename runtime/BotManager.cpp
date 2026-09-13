@@ -124,6 +124,9 @@ ai::WorldPosition const* PickLevelFittingPoint(::Player* bot)
             AreaTableEntry const* area = point->GetArea();
             if (!area)
                 continue;
+            uint32 zoneId = area->ZoneId ? area->ZoneId : area->Id;
+            if (zoneId == 5536 || zoneId == 5225)
+                continue;
             if (point->IsEnemyHomeZoneFor(info.GetTeam()))
                 continue;
             int32 areaLevel;
@@ -349,6 +352,28 @@ void BotManager::OnPlayerLogin(::Player* player)
 
     record.enteredWorld = true;
     record.lifecycle = BotLifecycle::InWorld;
+
+    // Normalize Goblin and High Elf bot starting zone: relocate from player-only
+    // custom starting zones (Blackstone Island 5536 and Thalassian Highlands 5225,
+    // which lack navmesh/transport paths to mainland) to standard faction starting zones.
+    if (record.random && player->GetLevel() < 10)
+    {
+        uint32 zoneId = player->GetZoneId();
+        if (player->GetRace() == RACE_GOBLIN && zoneId == 5536)
+        {
+            player->TeleportTo(1, -618.518f, -4251.67f, 38.718f, 0.0f);
+            player->SetHomebindToLocation(WorldLocation(1, -618.518f, -4251.67f, 38.718f, 0.0f), 14);
+            player->SaveToDB();
+            TB_LOG_DETAIL("TortoiseBots: normalized Goblin bot %s spawn to Valley of Trials", player->GetName());
+        }
+        else if (player->GetRace() == RACE_HIGH_ELF && zoneId == 5225)
+        {
+            player->TeleportTo(0, -8949.95f, -132.493f, 83.5312f, 0.0f);
+            player->SetHomebindToLocation(WorldLocation(0, -8949.95f, -132.493f, 83.5312f, 0.0f), 12);
+            player->SaveToDB();
+            TB_LOG_DETAIL("TortoiseBots: normalized High Elf bot %s spawn to Northshire", player->GetName());
+        }
+    }
 
     // One-shot random scatter on headless login only; fail-closed, no DB mutation, no homebind
     TryRandomTeleport(player, record);
