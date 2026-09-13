@@ -50,7 +50,8 @@ namespace ai
             float maxDist,
             bool isWalking);
 
-        void DispatchMovement(TravelPath movePath, bool generatePath, bool masterWalking);
+        // False when the path leads nowhere (fewer than two points): nothing was launched.
+        bool DispatchMovement(TravelPath movePath, bool generatePath, bool masterWalking);
 
         Unit* GetMover(Player* bot);
 
