@@ -37,31 +37,37 @@ code.
 
 ## 2. Compatible baseline
 
-The supported local host boundary is validated against:
+The supported core target is merged upstream `main`, not a candidate branch:
 
 ```text
-Core candidate (#411 + #416): e63161c2da7f13ab25687ea389026aa2e3c97647
-TortoiseBots tested code:      b9c7784accb8c719e8d7aadd2f6a9e0bda8d07a2
+Core: tortoise-wow/tortoise-wow main @ 5fafe43b
+      ("Merging headless session and module API expansion")
 ```
 
-Validated local core checkpoint:
-`e63161c2da7f13ab25687ea389026aa2e3c97647` (corrected #411/#416 candidate).
-It is based on the refreshed upstream `main` at `05912a49f7cd8f12afff04b3c37e6f852f981268`.
+Every generic seam in this contract is merged upstream. The #411 and #416
+candidates were superseded and closed; their combined surface landed through the
+merged PRs below.
 
-Upstream status:
-generic Headless capability remains proposed in PR [#411](https://github.com/tortoise-wow/tortoise-wow/pull/411)
-(`8037fc8`, based on refreshed upstream `main`). It is not yet merged.
-The module-facing surface is the three `World` lifecycle calls plus
-`SessionTransport` queries.
+| Seam | Upstream |
+| --- | --- |
+| Transport plus `World` Headless lifecycle (`SessionTransport`, `InitHeadlessSession`, `StartHeadlessSession`, `StopHeadlessSession`, `GetHeadlessSessionState`) | [#438](https://github.com/tortoise-wow/tortoise-wow/pull/438) (supersedes [#411](https://github.com/tortoise-wow/tortoise-wow/pull/411)) |
+| Generic participant primitives (`CharacterCreation::CreateCharacter`, copy-only `LFTMgr` queue API, `BattleGroundMgr::GetQueuedParticipants`) | [#438](https://github.com/tortoise-wow/tortoise-wow/pull/438) (supersedes [#416](https://github.com/tortoise-wow/tortoise-wow/pull/416)) |
+| Module script hooks (`PlayerScript`, `WorldScript`) | [#469](https://github.com/tortoise-wow/tortoise-wow/pull/469) |
+| Headless sessions drain synthesized client packets | [#475](https://github.com/tortoise-wow/tortoise-wow/pull/475) |
+| Chat hooks hardened behind delivery checks; addon payloads no longer parsed as commands | [#476](https://github.com/tortoise-wow/tortoise-wow/pull/476) |
+| `PlayerScript::OnChatYell` | [#493](https://github.com/tortoise-wow/tortoise-wow/pull/493) |
 
-Generic participant primitives remain proposed in PR [#416](https://github.com/tortoise-wow/tortoise-wow/pull/416).
-The corrected candidate is `e63161c`, based on the corrected #411 candidate,
-and remains logically separate.
+The pre-build gate is `tools/verify_penqle_host_contract.sh --core <core>`: a
+read-only source check that the merged core still exposes the generic interfaces
+this module calls, that legacy bot-object coupling has not returned to normal
+gameplay code, and that prints the core revision it verified. It passes against
+`5fafe43b`.
 
-Compile-verified integration snapshot:
+The last recorded compile-verified pair (`PLAN.md` §6.4) predates that merge and
+must be refreshed at the next module build against merged `main`:
 
 ```text
-Core:         e63161c2da7f13ab25687ea389026aa2e3c97647
+Core:         e63161c2da7f13ab25687ea389026aa2e3c97647   (closed #411/#416 candidate)
 TortoiseBots: b9c7784accb8c719e8d7aadd2f6a9e0bda8d07a2
 ```
 
@@ -205,7 +211,7 @@ the same `PlayerbotAI` is registered in `PlayerbotAIStorage`. An attach failure
 marks the record for removal and stops the Headless session instead of leaving
 an apparently online but inert bot.
 
-## 10. Packet bridge
+## 10. Packet bridge and chat seams
 
 The core exposes generic packet send/receive hooks. `BotPacketAdapter` is the
 module packet interpretation layer:
@@ -229,13 +235,66 @@ core receive queues: headless sessions drain them via `CanProcessPackets:IsHeadl
 hooks, flood accounting, per-update cap, `ExecuteOpcode` teleport boundary).
 Note: core stamps `packetTime` only for perflog profiling — it does not
 `FillPacketTime`, so movement opcodes with `m_recvdTime == 0` remain subject to
-`MovementHandler` reject-time drops. Chat command hardening (`ParseCommands` on
-`.`/`!`) stays module-side until upstream chat hardening lands.
+`MovementHandler` reject-time drops.
 
 The recorded fixture exercised Headless outgoing delivery, Network-master
 outgoing delivery and the existing group-invite Trigger -> Action acceptance
 path. Real-client incoming delivery remains a separate manual-client acceptance
 boundary.
+
+### Chat and addon-message seams (core #476)
+
+A non-addon chat message that carries a body runs
+`ProcessChatMessageAfterSecurityCheck` before its destination case:
+`CheckChatMessageValidity`, `PLAYERHOOK_ON_BEFORE_SEND_CHAT_MESSAGE`, then
+`ChatHandler::ParseCommands`. Synthesized bot speech (`SAY`, `YELL`, `PARTY`,
+`GUILD`, …) that begins with `.` or `!` is therefore still parsed as a server
+command; #476 removed addon payloads from that path only.
+`PlayerbotAI::SanitizeCommandLikeChat` prepends one space to bot speech starting
+with `.` or `!` (literal `..` / `!!` are left alone) and remains required by
+design.
+
+`LANG_ADDON` messages no longer reach the command parser:
+
+- `CHAT_MSG_CHANNEL` runs `CheckChatMessageValidity` instead of
+  `ProcessChatMessageAfterSecurityCheck`. Channel authorization — membership,
+  level, moderation and mute checks — still runs in the destination case.
+- `PARTY`, `GUILD`, `OFFICER`, `RAID`, `RAID_LEADER`, `RAID_WARNING`,
+  `BATTLEGROUND` and `BATTLEGROUND_LEADER` call
+  `sScriptMgr.OnAddonMessage(_player, msg)` after their destination and
+  permission checks. Returning `true` consumes the message: it is neither
+  relayed nor written to the chat log.
+- `SAY`, `YELL`, `EMOTE`, `WHISPER` and `CHANNEL` dispatch no
+  `OnAddonMessage`; `WorldSession::IsLanguageAllowedForChatType` (reached
+  through `CheckChatMessageValidity`) rejects `LANG_ADDON` for every type except
+  the eight above plus `CHANNEL`.
+- Turtle's own addon protocols (`HandleTurtleAddonMessages`: LFT, custom
+  merchant, guild bank, honor and threat requests) run before the destination
+  switch and consume matching `LANG_ADDON` payloads first; a module addon
+  protocol needs a prefix none of them claim.
+
+The remaining chat hooks fire on real delivery only:
+
+| Hook | Delivery condition |
+| --- | --- |
+| `PLAYERHOOK_ON_CHAT_WHISPER` | whisper was allowed (`allowSendWhisper`) and is not `LANG_ADDON`; also fires for non-addon party text |
+| `PLAYERHOOK_ON_CHAT_GUILD` | sender is in a guild and the language is not `LANG_ADDON` |
+| `PLAYERHOOK_ON_CHAT_SAY` | language is not `LANG_ADDON` |
+| `PLAYERHOOK_ON_CHAT_YELL` | language is not `LANG_ADDON` and the session is not fingerprint-banned ([#493](https://github.com/tortoise-wow/tortoise-wow/pull/493)) |
+| `PLAYERHOOK_ON_TEXT_EMOTE_HEARD` | the emote resolved to a unit within `CONFIG_FLOAT_LISTEN_RANGE_TEXTEMOTE` |
+| `PLAYERHOOK_ON_CHAT_CHANNEL` | non-addon channel message from a session that is neither muted nor banned; dispatched inside `Channel::Say` |
+
+Threading caveat: `Channel::Say` runs on `ChannelBroadcaster::ThreadProc`, not
+the world thread (`Channel::AsyncSay` therefore fires the generic
+`WORLDHOOK_ON_CHANNEL_BROADCAST` on the caller's thread instead). Until PR
+[#498](https://github.com/tortoise-wow/tortoise-wow/pull/498) moves
+`PLAYERHOOK_ON_CHAT_CHANNEL` back onto the world thread, a module channel hook
+must not touch world state.
+
+TortoiseBots registers no chat hooks today: `BotChatAdapter` only owns the
+generic `AllCommandScript` entry for `.bot`, and `BotPlayerAdapter` registers
+`PLAYERHOOK_ON_LOGIN`, `PLAYERHOOK_ON_MAP_CHANGED`, `PLAYERHOOK_ON_BEFORE_LOGOUT`
+and `PLAYERHOOK_ON_LOGOUT`. Do not add `OnChatChannel` until #498 is merged.
 
 ## 11. Command contract
 
@@ -325,10 +384,10 @@ MODULE_TORTOISEBOTS=static
 `BUILD_LEGACY_PLAYERBOTS` controls the separate legacy escape hatch; it is not
 the native module selector.
 
-Static module compile definitions/includes/PCH are isolated to the
-TortoiseBots module target before it is folded into the combined modules
-archive (local integration baseline; not yet upstream in #411 — separate
-follow-up).
+Static module compile definitions, include paths and the compatibility PCH are
+applied from this repository's `TortoiseBots.cmake` through the core's module
+CMake phase hooks (`TORTOISE_MODULE_CMAKE_PHASE`: `DISCOVERY`, `POST_TARGETS`);
+the module keeps this setup out of the core build files.
 
 ## 13. Configuration and database contract
 
@@ -374,7 +433,8 @@ evidence is preserved in Git history and `PROVENANCE.md`.
 
 ## 16. LFT queue integration (optional, default-off)
 
-`LftBotFillService` observes the copy-only generic LFT API from core PR #416
+`LftBotFillService` observes the copy-only generic LFT API merged with the
+participant primitives ([#438](https://github.com/tortoise-wow/tortoise-wow/pull/438))
 and never owns `m_queue`, offers, groups, or a second queue.
 The service actually uses only `GetQueuedPlayers`, `QueuePlayer`, `LeaveQueue`,
 `IsQueued`, `IsInOffer`, and `AcceptOffer`; core retains all offer,
@@ -416,7 +476,7 @@ cooldown bound world-thread work. Failed attempts are also rate-limited.
 Fail-closed eligibility (world-thread read-only, no `m_queue` mutation): bots
 with an active `PlayerbotAI` player master (`HasActivePlayerMaster`), any
 grouped/manual-use bot (`Player::GetGroup`), LFT queued/in-offer
-(`sLFTMgr.IsQueued`/`IsInOffer`, hard-requires core PR #416 `LFT/LFTMgr.h` — build fails with `#error` if absent, no silent fallback),
+(`sLFTMgr.IsQueued`/`IsInOffer`, hard-requires the merged `LFT/LFTMgr.h` (#438) — build fails with `#error` if absent, no silent fallback),
 or inside a battleground/instance (`InBattleGround`/`InBattleGroundQueue`/
 `Map::IsDungeon`/`IsBattleGround`) are never selected, posted, or teleported;
 per-bot AH action stays independent and never pulls owned/party bots from players.
@@ -432,10 +492,10 @@ No per-tick AH/DB scan or new AH-specific core seam is required.
 `RandomBotUpdateInterval`, world-thread) it creates the bounded deficit toward
 `MinRandomBots`/`MaxRandomBots` through `AccountMgr::CreateAccount` (random
 12-character alphanumeric password, hashed and never logged) and the generic
-synchronous `CharacterCreation::CreateCharacter` seam (core PR #416). Core owns account/character persistence and validation; the module
+synchronous `CharacterCreation::CreateCharacter` seam (merged #438). Core owns account/character persistence and validation; the module
 never writes `account`/`characters` rows directly, uses no DB worker or donor
 creation loop, and does no per-tick `LIKE` scan. Because `LoginDatabase` queues
-account creation asynchronously after `AllowAsyncTransactions` (separate from core PR #416),
+account creation asynchronously after `AllowAsyncTransactions` (independent of #438),
 the service remembers exactly one successful account name whose id is not
 immediately visible, retries that same name with bounded/log-throttled cadence
 while continuing the existing-account selection path and without allocating
@@ -458,7 +518,7 @@ for live Headless random bots through the existing native
 native `WorldSession::HandleBattleFieldPortOpcode` action 0 (`CMSG_BATTLEFIELD_PORT`
 mapId+0, fail-closed `GetBattleGroundTemplate`/`GetMapId` validation) for
 master-reclaim leave. Demand is read from the copy-only generic
-`BattleGroundMgr::GetQueuedParticipants` snapshot (core PR #416): no human
+`BattleGroundMgr::GetQueuedParticipants` snapshot (merged #438): no human
 waiting participant means no bot is queued, and a non-empty bucket selects its
 queue type/bracket and underrepresented team. The core remains the owner of
 queue state, invites, and port events; the module never mutates
@@ -471,7 +531,8 @@ reconcile is guarded by `InBattleGround`, `(guid, queueType)` ownership,
 fail-closed map validation. AV is always queued solo and success is verified
 after the native handler; WSG/AB group joins require every member to be a
 service-owned Headless bot. Cadence and per-interval budget are clamped and the
-setting defaults off (`RandomBotBgEnabled=0`). Requires core PRs #411 and #416.
+setting defaults off (`RandomBotBgEnabled=0`). Requires the merged session and
+participant primitives (#438).
 
 ## 20. New core seam test
 
