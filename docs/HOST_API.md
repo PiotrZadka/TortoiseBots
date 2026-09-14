@@ -272,6 +272,10 @@ design.
   merchant, guild bank, honor and threat requests) run before the destination
   switch and consume matching `LANG_ADDON` payloads first; a module addon
   protocol needs a prefix none of them claim.
+- `LANG_ADDON` chat is forced onto the world thread
+  (`WorldSession::GetChatPacketProcessingType`), so addon hooks dispatch with
+  the same threading as the rest of the command path, and
+  `CONFIG_BOOL_ADDON_CHANNEL=0` drops the message before any module sees it.
 
 The remaining chat hooks fire on real delivery only:
 
@@ -291,10 +295,40 @@ the world thread (`Channel::AsyncSay` therefore fires the generic
 `PLAYERHOOK_ON_CHAT_CHANNEL` back onto the world thread, a module channel hook
 must not touch world state.
 
-TortoiseBots registers no chat hooks today: `BotChatAdapter` only owns the
-generic `AllCommandScript` entry for `.bot`, and `BotPlayerAdapter` registers
-`PLAYERHOOK_ON_LOGIN`, `PLAYERHOOK_ON_MAP_CHANGED`, `PLAYERHOOK_ON_BEFORE_LOGOUT`
-and `PLAYERHOOK_ON_LOGOUT`. Do not add `OnChatChannel` until #498 is merged.
+TortoiseBots consumes one chat hook: `BotAddonAdapter` registers
+`PLAYERHOOK_ON_ADDON_MESSAGE` for the `TBM` prefix (below). `BotChatAdapter`
+owns the generic `AllCommandScript` entry for `.bot`, and `BotPlayerAdapter`
+registers `PLAYERHOOK_ON_LOGIN`, `PLAYERHOOK_ON_MAP_CHANGED`,
+`PLAYERHOOK_ON_BEFORE_LOGOUT` and `PLAYERHOOK_ON_LOGOUT`. No module code
+registers `OnChatChannel`; do not add it until #498 is merged.
+
+#### Addon command transport
+
+The companion addon sends its UI commands over the addon channel once the
+server says it can:
+
+```text
+client -> server   addon message, prefix "TBM", body "<verb> [args]"
+                   (same grammar as `.bot <verb> [args]`)
+server -> client   addon message, prefix "TBM", one line per command reply
+                   (the same lines the chat path sends as CHAT_MSG_SYSTEM)
+server -> client   "TBM:TRANSPORT|party" or "TBM:TRANSPORT|none", trailing the
+                   roster response
+```
+
+`BotAddonAdapter` consumes `TBM\t...` on the `PARTY` and `RAID` destinations,
+forwards the payload to the single `.bot` command entry, and returns `true`, so
+the core neither relays the request nor writes it to the chat log. Replies are
+delivered by a `ChatHandler` that overrides the virtual `SendSysMessage`, so
+every command reply — human text and structured `TBM:` lines alike — becomes an
+addon message instead of a yellow `CHAT_MSG_SYSTEM` line. Authorization is
+unchanged: the same command layer checks ownership and GM status.
+
+`TBM:TRANSPORT` is per-group state, not a capability flag. It reads `none` when
+the requester's group is a battleground group with no pre-battleground group,
+because the core drops those addon messages before the module hook
+(`WorldSession::HandleMessagechatOpcode`); the addon keeps using `.bot` chat
+whenever the verdict is missing, stale, or `none`.
 
 ## 11. Command contract
 
@@ -326,6 +360,11 @@ status
 command
 help
 ```
+
+The surface has two transports: chat (`.bot <verb>` in a normal chat type) and
+the addon command channel (§10, prefix `TBM`). Both run through the same parser,
+the same authorization and the same replies; the addon transport exists so the
+companion UI does not print request or reply lines into the chat frame.
 
 `.bot roster` reads the requester's undeleted account characters and any
 explicit cross-account ownership rows from the module-owned durable table. It
