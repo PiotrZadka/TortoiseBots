@@ -416,7 +416,8 @@ bool ChooseTravelTargetAction::SetBestTarget(Player* requester, TravelTarget* ta
 
                     AreaTableEntry const* area = position->GetArea();
                     uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
-                    if (zoneId == 5536 || zoneId == 5225)
+                    if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+                        (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || (area && PlayerbotAIConfig::IsIsolatedCustomZone(area->Id))))
                     {
                         ai->TellDebug(requester, "Skipping " + destination->GetTitle() + " - custom starting zone", "debug travel");
                         continue;

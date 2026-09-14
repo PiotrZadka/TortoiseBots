@@ -115,6 +115,11 @@ AiPlayerbot.RandomBotAutoCreate = 0
 # the world thread; no homebind update. Default 0.
 AiPlayerbot.EnableRandomTeleports = 0
 
+# Whether random bots are allowed in custom isolated starting zones
+# (Blackstone Island 5536, Thalassian Highlands 5225, Alah'Thalas 2040).
+# Default 0 (blocked, normalized to mainland starter zones).
+AiPlayerbot.AllowIsolatedCustomStartingZones = 0
+
 # Default-off bounded fill of human-waiting LFT queues with live random Headless bots.
 # Uses core #416 QueuePlayer/LeaveQueue/IsQueued/IsInOffer/AcceptOffer/
 # GetQueuedPlayers; core owns private queues, offers, cancellation and groups.

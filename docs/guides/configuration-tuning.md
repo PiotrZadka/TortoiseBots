@@ -52,6 +52,7 @@ These flags control the behavior of autonomous random bots roaming the world:
 | `AiPlayerbot.EnableGreet` | `1` | `1` | Bots wave or say hello when passing players in towns and roads. |
 | `AiPlayerbot.RandomBotShowHelmet` / `ShowCloak`| `1` | `1` | Renders helmets and cloaks on bots. |
 | `AiPlayerbot.RandomBotSayWithoutMaster` | `1` | `0` on quiet servers | Masterless bots say in `/s` what they would whisper to an owner (travel plans, cast failures). `0` keeps them silent unless owned. Needs restart. |
+| `AiPlayerbot.AllowIsolatedCustomStartingZones` | `0` | `0` | When 0, blocks random bots from custom isolated starter zones (Blackstone Island, Thalassian Highlands, Alah'Thalas) and normalizes them to mainland starter zones. |
 
 ---
 
