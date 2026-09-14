@@ -185,43 +185,47 @@ bool PullAction::Execute(Event& event)
         Unit* target = strategy->GetTarget();
         if (target)
         {
-            // Check if we are on pull range
+            // Check if we are on pull range. The "pull action" node also carries
+            // "reach pull" as a prerequisite, so the queued path moves first;
+            // this explicit branch covers the direct DoSpecificAction path used
+            // by the .bot command, which bypasses prerequisites.
             const float distanceToTarget = target->GetDistance(bot);
-            if (distanceToTarget <= strategy->GetRange())
-            {
-                if (sServerFacade.isMoving(bot))
-                {
-                    // Force stop
-                    ai->StopMoving();
-                    strategy->RequestPull(target, false);
-                    return false;
-                }
-
-                std::string actionName = strategy->GetPullActionName();
-
-                // Execute the pull action
-                SET_AI_VALUE(Unit*, "current target", GetTarget());
-                if (actionName == "reach pull")
-                {
-                    if (!bot->Attack(target, true))
-                        return false;
-
-                    strategy->OnPullActionCompleted();
-                    return true;
-                }
-                else if (ai->DoSpecificAction(actionName, event, true))
-                {
-                    strategy->OnPullActionCompleted();
-                    return true;
-                }
-                else
-                    return false;
-            }
-            else
+            if (distanceToTarget > strategy->GetRange())
             {
                 // Retry the reach pull action
                 strategy->RequestPull(target, false);
+                ai::Event reachEvent(event.GetSource(), "", event.GetOwner());
+                ai->DoSpecificAction("reach pull", reachEvent, true);
+                return false;
             }
+
+            if (sServerFacade.isMoving(bot))
+            {
+                // Force stop
+                ai->StopMoving();
+                strategy->RequestPull(target, false);
+                return false;
+            }
+
+            std::string actionName = strategy->GetPullActionName();
+
+            // Execute the pull action
+            SET_AI_VALUE(Unit*, "current target", GetTarget());
+            if (actionName == "reach pull")
+            {
+                if (!bot->Attack(target, true))
+                    return false;
+
+                strategy->OnPullActionCompleted();
+                return true;
+            }
+            else if (ai->DoSpecificAction(actionName, event, true))
+            {
+                strategy->OnPullActionCompleted();
+                return true;
+            }
+            else
+                return false;
         }
     }
 

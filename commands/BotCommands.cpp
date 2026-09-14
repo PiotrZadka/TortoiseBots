@@ -14,6 +14,8 @@
 #include "../ai/playerbot/PlayerbotAI.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../ai/playerbot/PlayerbotDbStore.h"
+#include "../ai/playerbot/ChatHelper.h"
+#include "../ai/playerbot/BotState.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "../ai/playerbot/strategy/generic/PullStrategy.h"
 #include "../ai/playerbot/strategy/values/RtiTargetValue.h"
@@ -570,6 +572,72 @@ static bool HandleFormation(ChatHandler* handler, char const* args)
     handler->PSendSysMessage("Bot %s formation set to %s.", name.c_str(), formation.c_str());
     return true;
 }
+// Explicit role designation (Player Agency First): a leveling Arms/Fury
+// warrior, Ret paladin, or Feral druid can serve as the party tank without
+// changing talents. The tank kit mirrors AiFactory's native tank strategies
+// so the bot qualifies via ContainsStrategy(STRATEGY_TYPE_TANK) and can pull.
+// Both spec placeholders are offered; each class context keeps the one it
+// knows ("protection" for Warrior/Paladin, "tank feral" for Druid) and the
+// engine silently ignores the unknown name.
+static bool HandleRole(ChatHandler* handler, char const* args)
+{
+    Player* requester = Requester(handler);
+    std::string input = Trim(args ? args : "");
+    size_t separator = input.find_first_of(" \t");
+    std::string botToken = separator == std::string::npos ? input : input.substr(0, separator);
+    std::string roleToken = separator == std::string::npos ? std::string() : Trim(input.substr(separator + 1));
+    for (char& c : roleToken)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+    uint8 role = 255;
+    if (roleToken == "tank")
+        role = static_cast<uint8>(ai::BOT_ROLE_TANK);
+    else if (roleToken == "healer" || roleToken == "heal")
+        role = static_cast<uint8>(ai::BOT_ROLE_HEALER);
+    else if (roleToken == "dps")
+        role = static_cast<uint8>(ai::BOT_ROLE_DPS);
+    else if (roleToken == "clear" || roleToken == "none" || roleToken == "reset")
+        role = static_cast<uint8>(ai::BOT_ROLE_NONE);
+
+    Player* bot = nullptr;
+    BotRecord* record = nullptr;
+    std::string name;
+    if (!requester || botToken.empty() || role == 255 ||
+        !ResolveOwnedBot(handler, botToken.c_str(), bot, record, name))
+    {
+        handler->PSendSysMessage("Usage: .bot role <online bot name> <tank|healer|dps|clear> (same account only)");
+        return true;
+    }
+
+    PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
+    if (!ai)
+    {
+        handler->PSendSysMessage("Bot %s has no AI yet.", name.c_str());
+        return true;
+    }
+
+    // Rebuild from the talent spec plus the forced role so a previous
+    // designation cannot leak its strategy kit into the new role. The stored
+    // snapshot is spec-dependent, so drop its strategy rows first (independent
+    // value rows such as formation and CC marks are retained).
+    ai->SetForcedRole(role);
+    sPlayerbotDbStore.InvalidateStrategySnapshots(ai);
+    ai->ResetStrategies();
+    if (role == static_cast<uint8>(ai::BOT_ROLE_TANK))
+    {
+        ai->ChangeStrategy("+protection,+tank feral,+tank assist", BotState::BOT_STATE_NON_COMBAT);
+        ai->ChangeStrategy("+protection,+tank feral,+tank assist,+pull,+pull back,+close",
+            BotState::BOT_STATE_COMBAT);
+    }
+    sPlayerbotDbStore.Save(ai);
+
+    char const* label = role == static_cast<uint8>(ai::BOT_ROLE_TANK) ? "tank"
+        : role == static_cast<uint8>(ai::BOT_ROLE_HEALER) ? "healer"
+        : role == static_cast<uint8>(ai::BOT_ROLE_DPS) ? "dps" : "cleared";
+    handler->PSendSysMessage("Bot %s role set to %s.", name.c_str(), label);
+    return true;
+}
+
 
 static bool HandleMatureCommand(ChatHandler* handler, char const* args)
 {
@@ -826,7 +894,7 @@ static bool HandlePullback(ChatHandler* handler, char const* args)
     Player* tank = ResolvePullExecutor(context);
     if (!tank)
     {
-        handler->PSendSysMessage("No tank bot found in your party (needs a bot with tank role).");
+        handler->PSendSysMessage("No tank bot found in your party (needs a bot with tank role). Designate one with .bot role <name> tank, or target a bot to pull with it.");
         return true;
     }
 
@@ -850,8 +918,8 @@ static bool HandlePullback(ChatHandler* handler, char const* args)
         handler->PSendSysMessage("Tank %s has no pullback strategy available.", tank->GetName());
         return true;
     }
-
     RelaxTacticalMovement(tankAI);
+    PausePartyDpsForPull(context, tank);
     ai::Event event("pullback", "", requester);
     if (!ExecuteQuietAction(tankAI, "pull my target", event))
     {
@@ -1476,7 +1544,7 @@ static bool HandleAction(ChatHandler* handler, char const* args)
 
         // Pulling requires tank movement: break stay!
         RelaxTacticalMovement(ai);
-
+        PausePartyDpsForPull(context, executor);
         if (!ExecuteQuietAction(ai, "pull my target", ai::Event(intent, "", requester)))
         {
             SendActionError(handler, intent, "failed", "The native pull strategy rejected the target.");
@@ -1512,6 +1580,9 @@ static bool HandleAction(ChatHandler* handler, char const* args)
             // preserving the mature target validation and combat path.
             // Break stay and follow in combat so bots can move to and fight the target!
             RelaxTacticalMovement(ai);
+            // Explicit attack unleashes DPS early,
+            // cancelling any pull threat-window hold. No-op when absent.
+            ai->ChangeStrategy("-wait for attack", BotState::BOT_STATE_COMBAT);
             accepted = ExecuteQuietAction(ai, "attack my target",
                 ai::Event("action attack", "", requester));
             // Caster rotations and party heals are below the minimal-action
@@ -1750,7 +1821,7 @@ bool HandleChatCommand(ChatHandler* handler, char const* args)
     while (*args == ' ' || *args == '\t') ++args;
     if (!*args)
     {
-        handler->PSendSysMessage("Usage: .bot add/remove/logout/roster/action/follow/invite/uninvite/stay/guard/free/ready/attack/interrupt/formation/list/stats/status/lease/pullback/summon/command/ah");
+        handler->PSendSysMessage("Usage: .bot add/remove/logout/roster/action/follow/invite/uninvite/stay/guard/free/ready/attack/interrupt/formation/list/stats/status/lease/pullback/role/summon/command/ah");
         return true;
     }
 
@@ -1808,6 +1879,8 @@ bool HandleChatCommand(ChatHandler* handler, char const* args)
         return HandleLease(handler, subArgs);
     if (cmd == "pullback" || cmd == "pull-back")
         return HandlePullback(handler, subArgs);
+    if (cmd == "role")
+        return HandleRole(handler, subArgs);
     if (cmd == "summon")
         return HandleSummon(handler, subArgs);
     if (cmd == "command")

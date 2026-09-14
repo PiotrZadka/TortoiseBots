@@ -11,6 +11,7 @@ public:
     PullStrategyActionNodeFactory()
     {
         creators["pull start"] = &pull_start;
+        creators["pull action"] = &pull_action;
     }
 
 private:
@@ -20,6 +21,18 @@ private:
             /*P*/ NULL,
             /*A*/ NULL,
             /*C*/ NextAction::array(0, new NextAction("pull action", ACTION_NORMAL), NULL));
+    }
+
+    // Movement freeze fix: when the target is outside pull range the queued
+    // "pull action" must first run "reach pull" (mature movement into range)
+    // instead of failing in place. The engine runs prerequisites before the
+    // possibility check, so this covers the direct ExecuteQuietAction path too.
+    static ActionNode* pull_action(PlayerbotAI* ai)
+    {
+        return new ActionNode("pull action",
+            /*P*/ NextAction::array(0, new NextAction("reach pull", ACTION_MOVE), NULL),
+            /*A*/ NULL,
+            /*C*/ NULL);
     }
 };
 
@@ -61,20 +74,67 @@ std::string PullStrategy::GetPullActionName() const
             return "reach pull";
 
         const ItemPrototype* proto = rangedWeapon->GetProto();
-        if (proto && proto->SubClass != ITEM_SUBCLASS_WEAPON_THROWN && proto->SubClass != ITEM_SUBCLASS_WEAPON_WAND)
+        if (proto)
         {
-            if (ai->GetBot()->GetUInt32Value(PLAYER_AMMO_ID) == 0)
+            // Untrained weapon skill: the shoot cast would fail CanCastSpell
+            // forever, so body-pull instead of aborting the request.
+            bool trained = true;
+            switch (proto->SubClass)
             {
-                std::list<Item*> ammo = ai->GetAiObjectContext()->GetValue<std::list<Item*>>("inventory items", "ammo")->Get();
-                if (!ammo.empty() && ammo.front())
+                case ITEM_SUBCLASS_WEAPON_BOW: trained = ai->HasSkill(SKILL_BOWS); break;
+                case ITEM_SUBCLASS_WEAPON_GUN: trained = ai->HasSkill(SKILL_GUNS); break;
+                case ITEM_SUBCLASS_WEAPON_CROSSBOW: trained = ai->HasSkill(SKILL_CROSSBOWS); break;
+                case ITEM_SUBCLASS_WEAPON_THROWN: trained = ai->HasSkill(SKILL_THROWN); break;
+                case ITEM_SUBCLASS_WEAPON_WAND: trained = ai->HasSkill(SKILL_WANDS); break;
+                default: break;
+            }
+            if (!trained)
+                return "reach pull";
+
+            if (proto->SubClass != ITEM_SUBCLASS_WEAPON_THROWN && proto->SubClass != ITEM_SUBCLASS_WEAPON_WAND)
+            {
+                if (ai->GetBot()->GetUInt32Value(PLAYER_AMMO_ID) == 0)
                 {
-                    ai->GetBot()->SetAmmo(ammo.front()->GetEntry());
-                }
-                else
-                {
-                    return "reach pull";
+                    std::list<Item*> ammo = ai->GetAiObjectContext()->GetValue<std::list<Item*>>("inventory items", "ammo")->Get();
+                    if (!ammo.empty() && ammo.front())
+                    {
+                        ai->GetBot()->SetAmmo(ammo.front()->GetEntry());
+                    }
+                    else
+                    {
+                        return "reach pull";
+                    }
                 }
             }
+        }
+
+        // Shoot deadzone: inside the 8-yard minimum range (or with no spell
+        // range data) a shoot cast cannot land, so melee/body-pull instead.
+        // Build the shoot spell name locally: GetSpellName() calls back into
+        // GetPullActionName(), so querying it here would recurse.
+        Unit* pullTarget = GetTarget();
+        if (pullTarget && pullTarget->IsInWorld())
+        {
+            std::string shootSpell = "shoot";
+            if (proto)
+            {
+                switch (proto->SubClass)
+                {
+                    case ITEM_SUBCLASS_WEAPON_GUN: shootSpell = "shoot gun"; break;
+                    case ITEM_SUBCLASS_WEAPON_BOW: shootSpell = "shoot bow"; break;
+                    case ITEM_SUBCLASS_WEAPON_CROSSBOW: shootSpell = "shoot crossbow"; break;
+                    case ITEM_SUBCLASS_WEAPON_THROWN: shootSpell = "throw"; break;
+                    default: break;
+                }
+            }
+            float maxRange = 0.0f;
+            float minRange = 0.0f;
+            bool hasRange = ai->GetSpellRange(shootSpell, &maxRange, &minRange);
+            float distance = ai->GetBot()->GetDistance(pullTarget);
+            if ((!hasRange && distance < 8.0f) ||
+                (hasRange && minRange > 0.0f && distance < minRange) ||
+                (hasRange && minRange <= 0.0f && distance < 8.0f))
+                return "reach pull";
         }
     }
 
@@ -226,27 +286,12 @@ bool PullStrategy::CanDoPullAction(Unit* target)
     if (!bot || !target || !target->IsInWorld() || target->GetMapId() != bot->GetMapId())
         return false;
 
-    const std::string& pullAction = GetPullActionName();
-    if (pullAction == "reach pull")
-        return true;
-
-    bool canPull = false;
-    if (!pullAction.empty())
-    {
-        // Temporarily set the pull target to be used by the can do specific action method
-        AiObjectContext* context = ai->GetAiObjectContext();
-        Unit* previousTarget = GetTarget();
-        SetTarget(target);
-
-        canPull = ai->CanDoSpecificAction("pull action", true, false);
-
-        // Restore the previous pull target
-        SetTarget(previousTarget);
-    }
-
-    return canPull;
+    // GetPullActionName() already falls back to "reach pull" when shoot is
+    // blocked (no weapon, no ammo, untrained skill, or 8-yard deadzone), so a
+    // melee/body pull is always available. Never return false here: the
+    // command would abort with "Can't perform pull action 'shoot'".
+    return true;
 }
-
 
 void PullStrategy::OnPullStarted()
 {
