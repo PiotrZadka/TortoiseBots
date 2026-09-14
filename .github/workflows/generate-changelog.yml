@@ -6,7 +6,7 @@ on:
       model:
         description: "OpenCode AI model to use"
         required: false
-        default: "deepseek-chat"
+        default: "deepseek-v4.1-flash"
   schedule:
     # Run weekly on Sunday at midnight UTC
     - cron: "0 0 * * 0"
@@ -34,8 +34,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-          OPENCODE_BASE_URL: ${{ secrets.OPENCODE_BASE_URL || 'https://api.opencode.ai/v1' }}
-          OPENCODE_MODEL: ${{ inputs.model || 'deepseek-chat' }}
+          OPENCODE_BASE_URL: ${{ secrets.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENCODE_MODEL: ${{ inputs.model || 'deepseek-v4.1-flash' }}
         run: |
           python3 tools/generate_changelog.py --write --out-notes /tmp/release_notes.md
 

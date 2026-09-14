@@ -23,8 +23,8 @@ import sys
 import urllib.request
 import urllib.error
 
-DEFAULT_BASE_URL = os.environ.get("OPENCODE_BASE_URL", "https://api.opencode.ai/v1")
-DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "deepseek-chat")
+DEFAULT_BASE_URL = os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1")
+DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "deepseek-v4.1-flash")
 CHANGELOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
 
 
