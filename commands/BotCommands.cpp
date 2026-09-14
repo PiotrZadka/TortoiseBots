@@ -28,6 +28,8 @@
 // pi-lens-ignore: clang:pp_file_not_found
 #include "Player.h"
 // pi-lens-ignore: clang:pp_file_not_found
+#include "World.h"
+// pi-lens-ignore: clang:pp_file_not_found
 #include "Group.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "WorldSession.h"
@@ -1097,6 +1099,29 @@ static std::string RosterLocation(uint32 mapId, uint32 zoneId, uint32 areaId)
         ",area:" + std::to_string(areaId);
 }
 
+// Channel the core currently dispatches addon commands from for this
+// requester. Mirrors the PARTY path of WorldSession::HandleMessagechatOpcode:
+// the message is consumed before any broadcast, so a pre-battleground group or
+// any non-battleground group works (raids included) and subgroup scoping is
+// irrelevant. A battleground group with no original group never reaches a
+// module, so the addon has to keep using `.bot` chat there.
+static char const* AddonCommandChannel(Player* requester)
+{
+    // A server can disable the addon channel outright; the chat handler drops
+    // every LANG_ADDON message before any module sees it.
+    if (!sWorld.getConfig(CONFIG_BOOL_ADDON_CHANNEL))
+        return "none";
+
+    Group* group = requester ? requester->GetOriginalGroup() : nullptr;
+    if (!group)
+    {
+        group = requester ? requester->GetGroup() : nullptr;
+        if (!group || group->isBGGroup())
+            return "none";
+    }
+    return "party";
+}
+
 static bool HandleRoster(ChatHandler* handler)
 {
     Player* requester = Requester(handler);
@@ -1174,6 +1199,9 @@ static bool HandleRoster(ChatHandler* handler)
         handler->PSendSysMessage("TBM:CC_ASSIGN|%s|%s", ProtocolSafe(assignment.first).c_str(),
             ProtocolSafe(assignment.second).c_str());
     handler->PSendSysMessage("TBM:CC_ASSIGN_END");
+    // Transport trailer: the addon sends its next commands over the addon
+    // channel only while this says "party". See AddonCommandChannel.
+    handler->PSendSysMessage("TBM:TRANSPORT|%s", AddonCommandChannel(requester));
     return true;
 }
 

@@ -143,3 +143,22 @@ Manage and monitor the autonomous synthetic Auction House engine in real time:
 | `.bot ah item` | `<id>` | Checks current blacklist status or active price overrides for an item ID. |
 | `.bot ah item` | `<id> reset` | Removes any custom price override for an item ID, restoring formula pricing. |
 | `.bot ah item` | `<id> <value> [chance] [min] [max]` | Sets custom price (copper), posting chance (%), and stack bounds. Passing `0 0` **blacklists** the item from being posted. |
+
+---
+
+## 7. Addon Command Transport (`TortoiseBotsManager`)
+
+The `/tbm` UI speaks the same command grammar over a silent transport. While the
+server reports the addon channel usable, the addon sends its UI commands as
+addon messages instead of `.bot` chat, and the module answers over the same
+channel: the request is consumed by the server, no echo reaches nearby players,
+and no reply line lands in the chat frame. `.bot` chat stays the transport when
+the addon channel is unavailable — ungrouped, a battleground group with no
+pre-battleground group, or an older module — and for every hand-typed command.
+
+- Request — addon message prefix `TBM`, body `<verb> [args]` (`action attack`).
+- Reply — addon message prefix `TBM`, one line per reply, `TBM:` protocol lines included.
+- Verdict — `TBM:TRANSPORT|party` or `TBM:TRANSPORT|none`, trailing each roster response.
+
+Hand-typed `.bot` commands keep their chat replies, so the CLI and macro surface
+is unchanged.

@@ -3,6 +3,8 @@
 // pi-lens-ignore: clang:pp_file_not_found
 #include "BotChatAdapter.h"
 // pi-lens-ignore: clang:pp_file_not_found
+#include "BotAddonAdapter.h"
+// pi-lens-ignore: clang:pp_file_not_found
 #include "BotHostAdapter.h"
 // pi-lens-ignore: clang:pp_file_not_found
 #include "LftFillAdapter.h"
@@ -21,6 +23,7 @@ void RegisterScripts()
     new BotPlayerAdapter();
     new BotUnitAdapter();
     new BotChatAdapter();
+    new BotAddonAdapter();
 }
 
 } // namespace TortoiseBots
