@@ -3,6 +3,24 @@
 ## 2026-09-14
 
 ### Combat & AI
+- New `.bot role <name> tank|healer|dps|clear` forces a bot's role; tank kits now mirror native AiFactory strategies (`protection`/`tank feral`, `tank assist`, `pull`, `pull back`, `close`) (#167)
+- Pull candidate selection is now deterministic: explicit role > designated tank > native spec. Bots attach `+pull` dynamically and never guess DPS (#167)
+- Fixed the movement freeze during pull/pullback sequences — bots now reposition cleanly instead of stalling (#167)
+- Ranged bots correctly fall back to ranged attacks when a melee pull isn't viable (#167)
+- DPS bots hold their threat during the tank's pull window instead of ripping aggro immediately (#167)
+
+### Addon Integration & Commands
+- New silent TBM addon command channel: the companion addon can drive `.bot` commands as addon messages, with responses returned on the same transport (#165)
+- UI clicks no longer spam the chat frame or echo to nearby players — quieter, cleaner bot management (#165)
+- `BotAddonAdapter` hooks `PLAYERHOOK_ON_ADDON_MESSAGE`, consumes `TBM`-prefixed payloads, and routes them through the existing `BotCommands::HandleChatCommand` entry point (same grammar, same GM authorization) (#165)
+
+### Documentation & Contracts
+- `docs/HOST_API.md` baseline realigned to merged upstream core `main` @ `5fafe43b` (#164)
+- Documented the module chat-hook contract settled by core PR #476, recording merged carriers for every dependent seam (#438, #469, #475, #476, #493) (#164)
+
+## 2026-09-14
+
+### Combat & AI
 - Bots now path around obstacles to reach targets that are out of line of sight instead of walking into walls; targets that stay unreachable for 15s get blacklisted per-bot for 5 minutes, killing the `invalid target` trigger spam (#157)
 - Capital city critters and NPCs are no longer grind targets — no more random bots picking fights with Gamon while the player is just trying to use the auction house; anything that attacks the bot still gets fought back (#158)
 
