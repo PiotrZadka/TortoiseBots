@@ -342,7 +342,7 @@ void PlayerbotAI::UpdateAI(uint32 elapsed, bool minimal)
     }
 
     // cancel logout in combat
-    if (bot->HasUnitState(UNIT_STAT_STUNNED) || bot->GetSession()->isLogingOut())
+    if (bot->GetSession()->isLogingOut())
     {
         if (sServerFacade.IsInCombat(bot) || (master && sServerFacade.IsInCombat(master) && sServerFacade.getDistance2d(bot, master) < 30.0f))
         {
@@ -1345,7 +1345,7 @@ void PlayerbotAI::UpdateAIInternal(uint32 elapsed, bool minimal)
         }
     }
     // logout if logout timer is ready or if instant logout is possible
-    if (bot->HasUnitState(UNIT_STAT_STUNNED) || bot->GetSession()->isLogingOut())
+    if (bot->GetSession()->isLogingOut())
     {
         WorldSession* botWorldSessionPtr = bot->GetSession();
         bool logout = botWorldSessionPtr->ShouldLogOut(time(nullptr));
@@ -1494,7 +1494,7 @@ void PlayerbotAI::Reset(bool full)
         bool logout = botWorldSessionPtr->ShouldLogOut(time(nullptr));
 
         // cancel logout
-        if (!logout && (bot->HasUnitState(UNIT_STAT_STUNNED) || bot->GetSession()->isLogingOut()))
+        if (!logout && bot->GetSession()->isLogingOut())
         {
             WorldPacket p;
             bot->GetSession()->HandleLogoutCancelOpcode(p);
@@ -1669,7 +1669,7 @@ void PlayerbotAI::HandleCommand(uint32 type, const std::string& text, Player& fr
     }
     else if (filtered == "logout")
     {
-        if (!(bot->HasUnitState(UNIT_STAT_STUNNED) || bot->GetSession()->isLogingOut()))
+        if (!bot->GetSession()->isLogingOut())
         {
             if (type == CHAT_MSG_WHISPER)
                 TellPlayer(&fromPlayer, BOT_TEXT("logout_start"));
@@ -1680,7 +1680,7 @@ void PlayerbotAI::HandleCommand(uint32 type, const std::string& text, Player& fr
     }
     else if (filtered == "logout cancel")
     {
-        if (bot->HasUnitState(UNIT_STAT_STUNNED) || bot->GetSession()->isLogingOut())
+        if (bot->GetSession()->isLogingOut())
         {
             if (type == CHAT_MSG_WHISPER)
                 TellPlayer(&fromPlayer, BOT_TEXT("logout_cancel"));
