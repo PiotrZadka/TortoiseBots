@@ -17,24 +17,6 @@
 - Added `tools/generate_changelog.py` plus a `CHANGELOG.md` seed and a `generate-changelog.yml` workflow, so releases can be generated from merged PRs with OpenCode AI instead of hand-writing notes (#163)
 - Updated canonical target core branch references from `bot-helpers` to `1181dev` in `README.md` and `CONTRIBUTING.md` after the upstream merge (#162)
 
-All notable user-facing changes, combat AI fixes, and system improvements to **TortoiseBots** are documented here.
-
----
-
-## 2026-09-14
-
-### Combat & Engine
-- **Combat Stun Logout Guard:** Prevented gameplay stuns and dazes from erroneously flagging non-master bots for logout, eliminating rapid bot churn and server population drops ([#160](https://github.com/Sagiroth/TortoiseBots/pull/160)).
-- **Capital City Non-Combat NPC Filter:** Bots roaming capital cities (for auction house trading or skill training) now ignore neutral/hostile city NPCs like Gamon while out of combat ([#158](https://github.com/Sagiroth/TortoiseBots/pull/158)).
-- **Death Handler Debouncing:** Fixed graveyard teleport and spirit healer revives re-triggering death logic up to 6 times per event, preventing phantom graveyard deaths and false hopeless-relocations ([#159](https://github.com/Sagiroth/TortoiseBots/pull/159)).
-- **Line-of-Sight & Obstacle Pathing:** Bots give up on unreachable targets and path around physical obstacles to reach targets outside direct line-of-sight ([#157](https://github.com/Sagiroth/TortoiseBots/pull/157)).
-
-### Starter Zones & Rescue
-- **Goblin & High Elf Mainland Routing:** Relocating stranded Goblin and High Elf bots now redirects them to canonical mainland starter areas (Valley of Trials / Northshire Abbey) rather than isolated islands or distant Hillsbrad graveyards ([#161](https://github.com/Sagiroth/TortoiseBots/pull/161)).
-
-### Core Integration & Tooling
-- **Tortoise 1181dev Core Target:** Updated canonical target core references and Docker build configurations to track Penqle's merged `1181dev` branch ([#162](https://github.com/Sagiroth/TortoiseBots/pull/162)).
-
 ---
 
 ## 2026-09-13
