@@ -46,6 +46,9 @@ std::vector<Player*> ResolveDynamicScope(BotCommandContext const& context);
 // bot. A selected bot is considered first only when the request also resolves
 // a valid enemy target; otherwise a live tank-capable party bot is selected.
 Player* ResolvePullExecutor(BotCommandContext const& context, bool allowSelected = true);
+// Hold party DPS for ~10s while the tank pulls and
+// establishes threat. Healers and tanks are untouched.
+void PausePartyDpsForPull(BotCommandContext const& context, Player* executor);
 // Select the existing mature pull policy for the next requested pull. Ordinary
 // Pull removes `pull back`; Pullback enables it so PullEnd can return to the
 // stored pull position. No custom movement state is introduced.

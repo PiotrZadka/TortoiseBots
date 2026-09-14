@@ -183,6 +183,12 @@ std::vector<Player*> ResolveDynamicScope(BotCommandContext const& context)
 
 namespace {
 
+// Player Agency First: a pull candidate is (1) the explicitly selected bot,
+// (2) a player-designated tank (forced role), or (3) a native tank spec. Never
+// guess DPS/cloth bots. The forced-role check must precede the
+// ContainsStrategy probe: a leveling Arms warrior designated as tank has the
+// STRATEGY_TYPE_TANK bit only after the role kit is applied, and a native
+// Protection bot without the mature pull policy still needs it attached.
 bool IsPullCandidate(Player* requester, Player* bot)
 {
     if (!requester || !bot || !bot->IsInWorld() || !bot->IsAlive() ||
@@ -190,7 +196,21 @@ bool IsPullCandidate(Player* requester, Player* bot)
         return false;
 
     PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
-    return ai && PlayerbotAI::IsTank(bot, true) && PullStrategy::Get(ai);
+    if (!ai)
+        return false;
+
+    if (ai->GetForcedRole() == static_cast<uint8>(BOT_ROLE_TANK) ||
+        PlayerbotAI::IsTank(bot, true))
+    {
+        if (!PullStrategy::Get(ai))
+        {
+            ai->ChangeStrategy("+pull", BotState::BOT_STATE_NON_COMBAT);
+            ai->ChangeStrategy("+pull", BotState::BOT_STATE_COMBAT);
+        }
+        return PullStrategy::Get(ai) != nullptr;
+    }
+
+    return false;
 }
 
 } // namespace
@@ -200,9 +220,18 @@ Player* ResolvePullExecutor(BotCommandContext const& context, bool allowSelected
     if (!context.requester || !context.enemyTarget)
         return nullptr;
 
+    // Ordered precedence: explicit selection, designated tank, native spec.
     if (allowSelected && context.selectedBot &&
         IsPullCandidate(context.requester, context.selectedBot))
         return context.selectedBot;
+
+    for (Player* bot : context.partyBots)
+    {
+        PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
+        if (ai && ai->GetForcedRole() == static_cast<uint8>(BOT_ROLE_TANK) &&
+            IsPullCandidate(context.requester, bot))
+            return bot;
+    }
 
     for (Player* bot : context.partyBots)
     {
@@ -211,6 +240,33 @@ Player* ResolvePullExecutor(BotCommandContext const& context, bool allowSelected
     }
 
     return nullptr;
+}
+
+// Threat window: while the tank pulls and establishes threat at the anchor,
+// party DPS bots hold fire for ~10s. Healers stay active. Uses the mature
+// "wait for attack" gate the rotation already honors (AttackAction skips
+// bot->Attack and the multiplier zeroes combat actions), not a new pause flag.
+void PausePartyDpsForPull(BotCommandContext const& context, Player* executor)
+{
+    if (!context.requester)
+        return;
+
+    for (Player* bot : context.partyBots)
+    {
+        if (!bot || bot == executor)
+            continue;
+        PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
+        if (!ai || PlayerbotAI::IsHeal(bot, true))
+            continue;
+        if (ai->GetForcedRole() == static_cast<uint8>(BOT_ROLE_TANK) ||
+            PlayerbotAI::IsTank(bot, true))
+            continue;
+        ai->GetAiObjectContext()->GetValue<uint8>("wait for attack time")->Set(10);
+        ai->ChangeStrategy("+wait for attack", BotState::BOT_STATE_COMBAT);
+        // Fresh combat window: a stale combat-start timestamp would expire the
+        // hold immediately, so reset it for the incoming pull engagement.
+        ai->GetAiObjectContext()->GetValue<time_t>("combat start time")->Set(time(0));
+    }
 }
 
 bool ConfigurePullMode(PlayerbotAI* ai, bool pullback)

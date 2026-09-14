@@ -126,7 +126,8 @@ ai::WorldPosition const* PickLevelFittingPoint(::Player* bot)
             if (!area)
                 continue;
             uint32 zoneId = area->ZoneId ? area->ZoneId : area->Id;
-            if (zoneId == 5536 || zoneId == 5225)
+            if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+                (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || PlayerbotAIConfig::IsIsolatedCustomZone(area->Id)))
                 continue;
             if (point->IsEnemyHomeZoneFor(info.GetTeam()))
                 continue;
@@ -215,6 +216,16 @@ bool MisplacedBotEligible(::Player* bot, int32& areaLevelOut)
         return false;
     if (sRandomBotFacade.IsPinnedBot(bot->GetGUIDLow()))
         return false;
+
+    // Isolated custom starting zones (Alah'Thalas 2040, Thalassian Highlands 5225, Blackstone Island 5536)
+    // lack walking paths/transports to the mainland; random bots here are always hopelessly misplaced.
+    if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+        (PlayerbotAIConfig::IsIsolatedCustomZone(bot->GetAreaId()) || PlayerbotAIConfig::IsIsolatedCustomZone(bot->GetZoneId())))
+    {
+        areaLevelOut = 50;
+        return true;
+    }
+
     auto& travelMgr = MaNGOS::Singleton<ai::TravelMgr>::Instance();
     int32 areaLevel = 0;
     if (!travelMgr.TryGetValidatedAreaLevel(bot->GetAreaId(), areaLevel) || areaLevel <= 0)
@@ -253,6 +264,7 @@ bool TeleportMisplacedBot(::Player* bot, int32 areaLevel, const std::string& cau
             sLog.outError("TortoiseBots: misplaced-bot relocation to the starting area failed for bot %s, retaining position", bot->GetName());
             return false;
         }
+        bot->SaveToDB();
     }
     else
     {
@@ -264,6 +276,7 @@ bool TeleportMisplacedBot(::Player* bot, int32 areaLevel, const std::string& cau
             sLog.outError("TortoiseBots: misplaced-bot relocation TeleportTo failed for bot %s, retaining position", bot->GetName());
             return false;
         }
+        bot->SaveToDB();
     }
     ::PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(bot);
     if (ai && ai->GetAiObjectContext())
@@ -287,7 +300,10 @@ bool BotManager::RelocateHopelessBot(::Player* bot)
         return false;
     auto* deathCountValue = ai->GetAiObjectContext()->GetValue<uint32>("death count");
     uint32 deathCount = deathCountValue ? deathCountValue->Get() : 0;
-    if (deathCount < 2)
+    uint32 minDeaths = ((bot->GetLevel() < 10 && areaLevel >= 20) ||
+        (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+         (PlayerbotAIConfig::IsIsolatedCustomZone(bot->GetAreaId()) || PlayerbotAIConfig::IsIsolatedCustomZone(bot->GetZoneId())))) ? 1 : 2;
+    if (deathCount < minDeaths)
         return false;
     return TeleportMisplacedBot(bot, areaLevel, "hopeless bot (" + std::to_string(deathCount) + " deaths)");
 }
@@ -321,9 +337,17 @@ void BotManager::SweepStrandedBots(uint32_t diff)
             p->GetSession() && p->GetSession()->IsHeadless() && p->IsInWorld() &&
             !p->GetGroup() && !p->InBattleGround() && !p->IsBeingTeleported() &&
             !sRandomBotFacade.IsPinnedBot(key);
+        int32 areaLevel = 0;
         if (stranded)
         {
-            int32 areaLevel = 0;
+            if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+                (PlayerbotAIConfig::IsIsolatedCustomZone(p->GetAreaId()) || PlayerbotAIConfig::IsIsolatedCustomZone(p->GetZoneId())))
+            {
+                RelocateStrandedBot(p);
+                m_strandedSince.erase(key);
+                continue;
+            }
+
             auto& travelMgr = MaNGOS::Singleton<ai::TravelMgr>::Instance();
             stranded = travelMgr.TryGetValidatedAreaLevel(p->GetAreaId(), areaLevel) && areaLevel > 0 &&
                 areaLevel > (int32)p->GetLevel() + 5;
@@ -333,13 +357,14 @@ void BotManager::SweepStrandedBots(uint32_t diff)
             m_strandedSince.erase(key);
             continue;
         }
+        time_t grace = (p->GetLevel() < 10 && areaLevel >= 20) ? 60 : STRANDED_GRACE_SEC;
         auto it = m_strandedSince.find(key);
         if (it == m_strandedSince.end())
         {
             m_strandedSince.emplace(key, now);
             continue;
         }
-        if (now - it->second < STRANDED_GRACE_SEC)
+        if (now - it->second < grace)
             continue;
         m_strandedSince.erase(it);
         RelocateStrandedBot(p);
@@ -469,25 +494,28 @@ void BotManager::OnPlayerLogin(::Player* player)
     record.enteredWorld = true;
     record.lifecycle = BotLifecycle::InWorld;
 
-    // Normalize Goblin and High Elf bot starting zone: relocate from player-only
-    // custom starting zones (Blackstone Island 5536 and Thalassian Highlands 5225,
-    // which lack navmesh/transport paths to mainland) to standard faction starting zones.
-    if (record.random && player->GetLevel() < 10)
+    // Normalize Goblin and High Elf (and any random bot in custom isolated
+    // starting zones lacking navmesh/transport to mainland) to standard faction starting zones.
+    if (record.random && !sPlayerbotAIConfig.allowIsolatedCustomStartingZones)
     {
         uint32 zoneId = player->GetZoneId();
-        if (player->GetRace() == RACE_GOBLIN && zoneId == 5536)
+        uint32 areaId = player->GetAreaId();
+        if (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || PlayerbotAIConfig::IsIsolatedCustomZone(areaId))
         {
-            player->TeleportTo(1, -618.518f, -4251.67f, 38.718f, 0.0f);
-            player->SetHomebindToLocation(WorldLocation(1, -618.518f, -4251.67f, 38.718f, 0.0f), 14);
-            player->SaveToDB();
-            TB_LOG_DETAIL("TortoiseBots: normalized Goblin bot %s spawn to Valley of Trials", player->GetName());
-        }
-        else if (player->GetRace() == RACE_HIGH_ELF && zoneId == 5225)
-        {
-            player->TeleportTo(0, -8949.95f, -132.493f, 83.5312f, 0.0f);
-            player->SetHomebindToLocation(WorldLocation(0, -8949.95f, -132.493f, 83.5312f, 0.0f), 12);
-            player->SaveToDB();
-            TB_LOG_DETAIL("TortoiseBots: normalized High Elf bot %s spawn to Northshire", player->GetName());
+            if (player->GetTeam() == HORDE)
+            {
+                player->TeleportTo(1, -618.518f, -4251.67f, 38.718f, 0.0f);
+                player->SetHomebindToLocation(WorldLocation(1, -618.518f, -4251.67f, 38.718f, 0.0f), 14);
+                player->SaveToDB();
+                TB_LOG_DETAIL("TortoiseBots: normalized Horde bot %s spawn from isolated zone %u to Valley of Trials", player->GetName(), zoneId);
+            }
+            else
+            {
+                player->TeleportTo(0, -8949.95f, -132.493f, 83.5312f, 0.0f);
+                player->SetHomebindToLocation(WorldLocation(0, -8949.95f, -132.493f, 83.5312f, 0.0f), 12);
+                player->SaveToDB();
+                TB_LOG_DETAIL("TortoiseBots: normalized Alliance bot %s spawn from isolated zone %u to Northshire", player->GetName(), zoneId);
+            }
         }
     }
 
