@@ -462,6 +462,18 @@ bool AttackersValue::IgnoreTarget(Unit* target, Player* playerToCheckAgainst)
     PlayerbotAI* ai = PlayerbotAIStorage::Instance().GetAI(playerToCheckAgainst);
     AiObjectContext* context = ai->GetAiObjectContext();
 
+    // A target the bot gave up on (out of line of sight with no way to close the
+    // distance, see ReachTargetAction) is left alone for a while - unless it comes
+    // after the bot itself, in which case it is plainly reachable.
+    std::map<ObjectGuid, uint32>& unreachable = context->GetValue<std::map<ObjectGuid, uint32>&>("unreachable targets")->Get();
+    auto givenUp = unreachable.find(target->getObjectGuid());
+    if (givenUp != unreachable.end())
+    {
+        if (WorldTimer::getMSTime() < givenUp->second && target->GetVictim() != playerToCheckAgainst)
+            return true;
+        unreachable.erase(givenUp);
+    }
+
     //Ignore Hard hostiles while not already fighting.
     if (target->GetLevel() > (playerToCheckAgainst->GetLevel() + 5) && ai->GetState() == BotState::BOT_STATE_NON_COMBAT)
     {
