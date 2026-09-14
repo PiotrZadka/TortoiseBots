@@ -10,6 +10,7 @@
 #include "playerbot/strategy/values/MoveStyleValue.h"
 #include "GenericSpellActions.h"
 #include "playerbot/PlayerbotFactory.h"
+#include <ctime>
 
 namespace ai
 {
@@ -17,6 +18,16 @@ namespace ai
     {
     public:
         ReachTargetAction(PlayerbotAI* ai, std::string name, float range = 0.0f) : MovementAction(ai, name), Qualified(), range(range), spellName("") {}
+
+    private:
+        // Give-up bookkeeping for a hostile target that is out of line of sight (see Execute).
+        ObjectGuid noLosTarget;
+        uint32 noLosSinceMs = 0;
+        float noLosBestDist = 0.0f;
+        float noLosStartX = 0.0f;
+        float noLosStartY = 0.0f;
+
+    public:
 
         virtual void Qualify(const std::string& qualifier) override
         {
@@ -66,6 +77,52 @@ namespace ai
                         sServerFacade.IsDistanceGreaterThan(distanceToTarget, sPlayerbotAIConfig.tooCloseDistance))
                 {
                     return true;
+                }
+
+                // A hostile target that stays out of line of sight while the bot makes no
+                // headway towards it will not be reached from here (a kobold inside a mine,
+                // the bot on the hill above it - measured: 57 such episodes of 6 minutes on
+                // average in one night, ended only by "combat long stuck"). Headway is
+                // getting closer or walking a detour around the obstacle; waiting for an
+                // approaching enemy (above) does not count either way. Without headway for
+                // 15 s the target goes on the "unreachable targets" list for five minutes
+                // (honoured by AttackersValue::IgnoreTarget) and "invalid target" selects
+                // something else. A target that is attacking the bot is never given up on:
+                // it is reachable, or it will come to us.
+                if (!isFriend && !inLos)
+                {
+                    uint32 const nowMs = WorldTimer::getMSTime();
+                    float const dxStart = bot->GetPositionX() - noLosStartX;
+                    float const dyStart = bot->GetPositionY() - noLosStartY;
+                    bool const detour = (dxStart * dxStart + dyStart * dyStart) > 8.0f * 8.0f;
+                    if (noLosTarget != target->getObjectGuid() || distanceToTarget < noLosBestDist - 2.0f || detour)
+                    {
+                        noLosTarget = target->getObjectGuid();
+                        noLosSinceMs = nowMs;
+                        noLosBestDist = distanceToTarget;
+                        noLosStartX = bot->GetPositionX();
+                        noLosStartY = bot->GetPositionY();
+                    }
+                    else if (nowMs - noLosSinceMs >= 15000 && target->GetVictim() != bot)
+                    {
+                        context->GetValue<std::map<ObjectGuid, uint32>&>("unreachable targets")->Get()[target->getObjectGuid()] = nowMs + 5 * MINUTE * IN_MILLISECONDS;
+                        ai->TellDebug(GetMaster(), "Giving up on " + std::string(target->GetName()) + " - out of line of sight, no headway for 15 s", "debug move");
+                        if (sPlayerbotAIConfig.hasLog("unreachable_targets.csv"))
+                        {
+                            time_t const now = time(nullptr);
+                            char stamp[32];
+                            strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
+                            std::ostringstream out;
+                            out << stamp << "," << bot->GetName() << "," << bot->GetLevel() << "," << target->GetName() << "," << (int)distanceToTarget;
+                            sPlayerbotAIConfig.log("unreachable_targets.csv", out.str().c_str());
+                        }
+                        noLosTarget = ObjectGuid();
+                        return false;
+                    }
+                }
+                else
+                {
+                    noLosTarget = ObjectGuid();
                 }
 
                 if (ai->HasStrategy("debug move", BotState::BOT_STATE_NON_COMBAT))

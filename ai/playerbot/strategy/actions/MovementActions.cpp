@@ -1377,7 +1377,12 @@ bool MovementAction::ChaseTo(WorldObject* obj, float distance, float angle)
 
     const float distanceToTarget = botPosition.distance(targetPosition);
 
-    if (distanceToTarget > sPlayerbotAIConfig.sightDistance)
+    // A target out of line of sight is approached the way a far one is: by path to the
+    // target itself. The straight-line chase point below is snapped to the ground and
+    // must be visible from the bot (IsValidPosition), so for a target inside a mine
+    // and a bot on the hill above it that point is the hill - the bot walks there,
+    // still sees nothing and repeats, or falls back to a chase that does not move.
+    if (distanceToTarget > sPlayerbotAIConfig.sightDistance || !bot->IsWithinLOSInMap(obj, true))
         return MoveTo(targetPosition.GetMapId(), targetPosition.getX(), targetPosition.getY(), targetPosition.getZ());
 
     const Vector3 directionToTarget = (targetPoint - botPoint).directionOrZero();

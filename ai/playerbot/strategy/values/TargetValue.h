@@ -5,6 +5,7 @@
 #include "playerbot/strategy//AiObject.h"
 #include "playerbot/strategy/Value.h"
 #include "playerbot/TravelMgr.h"
+#include <map>
 
 namespace ai
 {
@@ -101,6 +102,19 @@ namespace ai
 
     private:
         std::set<ObjectGuid> data;
+    };
+
+    // Targets a reach action gave up on - out of line of sight with no headway towards
+    // them (see ReachTargetAction) - mapped to the time (ms) until which they are left
+    // alone. Honoured by AttackersValue::IgnoreTarget, so neither the current target nor
+    // the next grind pick lands on them again right away.
+    class UnreachableTargetsValue : public ManualSetValue<std::map<ObjectGuid, uint32>& >
+    {
+    public:
+        UnreachableTargetsValue(PlayerbotAI* ai) : ManualSetValue<std::map<ObjectGuid, uint32>& >(ai, data, "unreachable targets") {}
+
+    private:
+        std::map<ObjectGuid, uint32> data;
     };
 
     class TalkTargetValue : public ManualSetValue<ObjectGuid>
