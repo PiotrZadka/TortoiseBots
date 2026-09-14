@@ -18,10 +18,10 @@ work and keeps the design focused.
 
 ## Current core target
 
-TortoiseBots currently targets the `bot-helpers` branch of
+TortoiseBots currently targets the `1181dev` branch of
 [`tortoise-wow`](https://github.com/tortoise-wow/tortoise-wow). Until that work
-is merged into `main` or `1181dev`, build and test integration changes against
-`bot-helpers`.
+is merged into `main`, build and test integration changes against
+`1181dev`.
 
 Pull requests for this repository should normally target TortoiseBots'
 `main` branch unless an issue says otherwise.
