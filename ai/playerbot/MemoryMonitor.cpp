@@ -4,8 +4,14 @@
 #include <time.h>
 #include "Timer.h"
 #include "Log.h"
+
+// MEMORY_MONITOR is off by default (see MemoryMonitor.h) - this whole class is dead code
+// on every build we ship. Only pull in boost::stacktrace, and the boost-stacktrace vcpkg
+// package it needs at link time, when someone actually flips that switch on.
+#ifdef MEMORY_MONITOR
 #define BOOST_STACKTRACE_LINK
 #include <boost/stacktrace.hpp>
+#endif
 
 #if PLATFORM == PLATFORM_WINDOWS
 #include "psapi.h"
@@ -22,7 +28,11 @@ void MemoryMonitor::Add(std::string objectType, uint64_t object, int level, std:
     {
         std::ostringstream out;
         if (stack.empty())
+#ifdef MEMORY_MONITOR
             out << boost::stacktrace::stacktrace();
+#else
+            out << "(stack unavailable: build without MEMORY_MONITOR)";
+#endif
         else
             out << stack;
         adds[std::this_thread::get_id()][objectType][object] = make_pair(out.str(), time(0));

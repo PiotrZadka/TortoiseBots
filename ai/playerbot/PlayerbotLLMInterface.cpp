@@ -12,27 +12,9 @@ INSTANTIATE_SINGLETON_1(PlayerbotLLMInterface);
 #include <cstring>
 #include <sstream>
 #include <regex>
-#include <chrono>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <thread>
 #include "Log.h"
 #include "PlayerbotAIConfig.h"
 #include "PlayerbotTextMgr.h"
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <cstring>
-#include <fcntl.h>
-#include <errno.h>
-#include <netdb.h>
-#endif
 
 
 namespace
@@ -260,117 +242,6 @@ std::string PlayerbotLLMInterface::SanitizeForJson(const std::string& input)
         }
     }
     return sanitized;
-}
-
-inline void SetNonBlockingSocket(int sock) {
-#ifdef _WIN32
-    u_long mode = 1;
-    if (ioctlsocket(sock, FIONBIO, &mode) != 0) {
-        sLog.outError("BotLLM: Failed to set non-blocking mode on socket. Error: %d", WSAGetLastError());
-    }
-#else
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1) {
-        sLog.outError("BotLLM: Failed to set non-blocking mode on socket. Error: %s", strerror(errno));
-    }
-#endif
-}
-
-inline void RestoreBlockingSocket(int sock) {
-#ifdef _WIN32
-    u_long mode = 0;
-    ioctlsocket(sock, FIONBIO, &mode);
-#else
-    int flags = fcntl(sock, F_GETFL, 0);
-    if (flags != -1) {
-        fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
-    }
-#endif
-}
-
-inline std::string SSLRecvWithTimeout(SSL* ssl, int timeout_seconds, int& bytesRead) {
-    char buffer[4096];
-    std::string response;
-
-    auto start = std::chrono::steady_clock::now();
-
-    while (true) {
-        bytesRead = SSL_read(ssl, buffer, sizeof(buffer) - 1);
-
-        if (bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            response += buffer;
-        }
-        else {
-            int ssl_error = SSL_get_error(ssl, bytesRead);
-            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
-                auto now = std::chrono::steady_clock::now();
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - start).count() >= timeout_seconds) {
-                    break;
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            else {
-                break;
-            }
-        }
-    }
-
-    return response;
-}
-
-inline std::string RecvWithTimeout(int sock, int timeout_seconds, int& bytesRead) {
-    char buffer[4096];
-    int bufferSize = sizeof(buffer);
-    std::string response;
-
-    SetNonBlockingSocket(sock);
-
-    auto start = std::chrono::steady_clock::now();
-
-    while (true) {
-        bytesRead = recv(sock, buffer, bufferSize - 1, 0);
-
-        if (bytesRead > 0) {
-            buffer[bytesRead] = '\0';
-            response += buffer;
-        }
-        else if (bytesRead == -1) {
-#ifdef _WIN32
-            if (WSAGetLastError() == WSAEWOULDBLOCK) {
-#else
-            if (errno == EWOULDBLOCK || errno == EAGAIN) {
-#endif
-                auto now = std::chrono::steady_clock::now();
-                if (std::chrono::duration_cast<std::chrono::seconds>(now - start).count() >= timeout_seconds) {
-                    break;
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            else {
-#ifdef _WIN32
-                sLog.outError("BotLLM: recv error: %d", WSAGetLastError());
-#else
-                sLog.outError("BotLLM: recv error: %s", strerror(errno));
-#endif
-                break;
-            }
-            }
-        else {
-            break;
-        }
-        }
-
-    RestoreBlockingSocket(sock);
-
-    return response;
-    }
-
-std::string GetSSLError() {
-    unsigned long err = ERR_get_error();
-    char err_buf[256];
-    ERR_error_string_n(err, err_buf, sizeof(err_buf));
-    return std::string(err_buf);
 }
 
 std::string PlayerbotLLMInterface::Generate(const std::string& prompt, int timeOutSeconds, int maxGenerations, std::vector<std::string> & debugLines) {
