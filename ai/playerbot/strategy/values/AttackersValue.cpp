@@ -474,6 +474,21 @@ bool AttackersValue::IgnoreTarget(Unit* target, Player* playerToCheckAgainst)
         unreachable.erase(givenUp);
     }
 
+    // A creature that stands in a capital city is no grind target. Gamon and his kind are
+    // attackable on purpose and sit at the auction house, inside the level window of the
+    // level-10 bots that come to sell or train - two of them died to him in one morning.
+    // Unprompted only: a creature that attacks the bot is fought like any other.
+    if (ai->GetState() == BotState::BOT_STATE_NON_COMBAT && target->GetTypeId() == TYPEID_UNIT)
+    {
+        uint32 const zone = target->GetZoneId();
+        bool capital = zone == 1637 || zone == 1519 || zone == 1537 || zone == 1657 || zone == 1497 || zone == 1638;
+        if (!capital)
+            if (AreaEntry const* area = AreaEntry::GetById(zone))
+                capital = (area->Flags & AREA_FLAG_CAPITAL) != 0;
+        if (capital)
+            return true;
+    }
+
     //Ignore Hard hostiles while not already fighting.
     if (target->GetLevel() > (playerToCheckAgainst->GetLevel() + 5) && ai->GetState() == BotState::BOT_STATE_NON_COMBAT)
     {
