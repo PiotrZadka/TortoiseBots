@@ -22,6 +22,7 @@ import subprocess
 import sys
 import urllib.request
 import urllib.error
+import uuid
 
 DEFAULT_BASE_URL = os.environ.get("OPENCODE_ENDPOINT") or os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1")
 DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "deepseek-v4.1-flash")
@@ -133,7 +134,8 @@ def generate_summary_with_ai(prs, api_key, base_url, model):
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "x-opencode-session": str(uuid.uuid4())
     }
 
     req = urllib.request.Request(
