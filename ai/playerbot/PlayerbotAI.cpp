@@ -1109,6 +1109,19 @@ void PlayerbotAI::OnDeath()
             return;
         }
 
+        // Whatever the corpse and the ghost flag say, one death is logged and counted once:
+        // the mark below is cleared only when the bot is seen alive again (OnResurrected).
+        // What re-fires here in between - the graveyard teleport, a spirit-healer revive in
+        // flight, bones already spawned - is the same death; it was logged as "killer=none"
+        // at the graveyard up to six times a second apart, and the death count, the
+        // hopeless-relocation threshold and the BOT_DEATH telemetry counted every one.
+        if (deathHandled_)
+        {
+            ChangeEngine(BotState::BOT_STATE_DEAD);
+            return;
+        }
+        deathHandled_ = true;
+
         StopMoving();
 
         Player* master = GetMaster();
@@ -1247,6 +1260,9 @@ void PlayerbotAI::OnDeath()
 
 void PlayerbotAI::OnResurrected()
 {
+    if (sServerFacade.IsAlive(bot))
+        deathHandled_ = false; // alive again: the next death is a new one
+
     if (IsStateActive(BotState::BOT_STATE_DEAD) && sServerFacade.IsAlive(bot))
     {
         // Stop following on resurrected
