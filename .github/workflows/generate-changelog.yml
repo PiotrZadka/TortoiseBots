@@ -43,12 +43,19 @@ jobs:
           git commit -m "docs: update CHANGELOG.md for ${{ steps.generate.outputs.release_tag }} [skip ci]"
           git push origin main
 
-      - name: Create GitHub Release
+      - name: Create or Update GitHub Release
         if: steps.generate.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.generate.outputs.release_tag }}" \
-            --title "${{ steps.generate.outputs.release_title }}" \
-            --notes-file /tmp/release_notes.md \
-            --target main
+          if [ "${{ steps.generate.outputs.release_exists }}" = "true" ]; then
+            echo "Release ${{ steps.generate.outputs.release_tag }} already exists. Appending release notes..."
+            gh release edit "${{ steps.generate.outputs.release_tag }}" \
+              --notes-file /tmp/release_notes.md
+          else
+            echo "Creating new release ${{ steps.generate.outputs.release_tag }}..."
+            gh release create "${{ steps.generate.outputs.release_tag }}" \
+              --title "${{ steps.generate.outputs.release_title }}" \
+              --notes-file /tmp/release_notes.md \
+              --target main
+          fi
