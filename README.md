@@ -1,6 +1,6 @@
 # TortoiseBots
 
-Independent native PlayerBots module for the canonical **Tortoise WoW 1.18.1** core repository ([`tortoise-wow`](https://github.com/tortoise-wow/tortoise-wow), `1181dev` branch).
+Independent native PlayerBots module for the canonical **Tortoise WoW 1.18.1** core repository ([`tortoise-wow`](https://github.com/tortoise-wow/tortoise-wow), `main` branch).
 
 `TortoiseBots` delivers native AI companions through a decoupled C++ architecture: bot AI, combat strategies, and lifecycle management live entirely within this module, while session transport and character state stay cleanly owned by the core via generic headless sessions (`SessionTransport::Headless`). The core builds and runs 100% cleanly without the module (`MODULES=disabled`).
 
@@ -11,7 +11,7 @@ Independent native PlayerBots module for the canonical **Tortoise WoW 1.18.1** c
 ## 🏛️ Architecture Boundary
 
 ```text
-  Core Server (tortoise-wow: 1181dev)
+  Core Server (tortoise-wow: main)
   ┌─────────────────────────────────────────┐
   │ Canonical 1.18.1 World Server           │
   │ Generic Headless Sessions (No bot deps) │
@@ -59,7 +59,7 @@ All architecture, class AI, commands, mechanics, and operational guides are docu
 
 ## 🛠️ Quick Build
 
-Inside your `tortoise-wow` (`1181dev` branch) checkout:
+Inside your `tortoise-wow` (`main` branch) checkout:
 
 ```bash
 # Clone module into modules/
