@@ -1,0 +1,60 @@
+name: Generate Changelog & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "OpenCode AI model to use"
+        required: false
+        default: "deepseek-v4.1-flash"
+  schedule:
+    # Run weekly on Sunday at midnight UTC
+    - cron: "0 0 * * 0"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate Changelog & Notes
+        id: generate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_ENDPOINT: ${{ secrets.OPENCODE_ENDPOINT }}
+          OPENCODE_BASE_URL: ${{ secrets.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          OPENCODE_MODEL: ${{ inputs.model || secrets.OPENCODE_MODEL || 'deepseek-v4.1-flash' }}
+        run: |
+          python3 tools/generate_changelog.py --write --out-notes /tmp/release_notes.md
+
+      - name: Commit CHANGELOG.md
+        if: steps.generate.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for ${{ steps.generate.outputs.release_tag }} [skip ci]"
+          git push origin main
+
+      - name: Create GitHub Release
+        if: steps.generate.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.generate.outputs.release_tag }}" \
+            --title "${{ steps.generate.outputs.release_title }}" \
+            --notes-file /tmp/release_notes.md \
+            --target main
