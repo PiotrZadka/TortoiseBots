@@ -157,32 +157,62 @@ def generate_summary_with_ai(prs, api_key, base_url, model):
         raise RuntimeError(f"Failed to communicate with OpenCode API: {e}")
 
 
-def prepend_to_changelog(date_str, summary_text):
-    """Prepend the new release section to CHANGELOG.md."""
-    header = f"## {date_str}\n\n{summary_text}\n\n"
-    
+def update_or_prepend_changelog(date_str, summary_text):
+    """Update existing section for date_str by appending, or prepend a new section to CHANGELOG.md."""
     if os.path.exists(CHANGELOG_PATH):
         with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
             content = f.read()
-        
-        # Check if already has a main title
+
+        # Check if an entry for this date already exists
+        pattern = rf"(##\s+{re.escape(date_str)}\s*\n)(.*?)(?=\n##\s+|\n---|\Z)"
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            existing_section = match.group(2).strip()
+            merged_section = f"{existing_section}\n\n{summary_text}\n"
+            new_content = content[:match.start(2)] + merged_section + content[match.end(2):]
+            with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
+                f.write(new_content.strip() + "\n")
+            print(f"Appended changes to existing section for {date_str} in {CHANGELOG_PATH}")
+            return
+
+        # Prepend new section
+        header = f"## {date_str}\n\n{summary_text}\n\n---\n\n"
         if content.startswith("# Changelog"):
-            parts = content.split("\n\n", 1)
-            new_content = parts[0] + "\n\n" + header + (parts[1] if len(parts) > 1 else "")
+            parts = content.split("\n\n", 2)
+            if len(parts) >= 2 and parts[1].startswith("All notable"):
+                new_content = parts[0] + "\n\n" + parts[1] + "\n\n" + header + (parts[2] if len(parts) > 2 else "")
+            else:
+                new_content = parts[0] + "\n\n" + header + (parts[1] if len(parts) > 1 else "")
         else:
             new_content = f"# Changelog\n\nAll notable changes to TortoiseBots are documented here.\n\n{header}{content}"
     else:
-        new_content = f"# Changelog\n\nAll notable changes to TortoiseBots are documented here.\n\n{header}"
+        new_content = f"# Changelog\n\nAll notable changes to TortoiseBots are documented here.\n\n## {date_str}\n\n{summary_text}\n"
 
     with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
         f.write(new_content.strip() + "\n")
-    print(f"Updated {CHANGELOG_PATH}")
+    print(f"Added new release section for {date_str} in {CHANGELOG_PATH}")
+
+
+def release_exists_on_github(tag_name):
+    """Check whether a release for tag_name already exists using gh CLI."""
+    try:
+        res = subprocess.run(
+            ["gh", "release", "view", tag_name, "--json", "body"],
+            capture_output=True,
+            text=True
+        )
+        if res.returncode == 0:
+            data = json.loads(res.stdout)
+            return True, data.get("body", "")
+    except Exception:
+        pass
+    return False, ""
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate release notes from merged PRs using OpenCode AI.")
     parser.add_argument("--since", help="ISO timestamp or date to search PRs since (default: auto-detect from last tag/changelog)")
-    parser.add_argument("--write", action="store_true", help="Prepend generated entry to CHANGELOG.md")
+    parser.add_argument("--write", action="store_true", help="Prepend or append generated entry to CHANGELOG.md")
     parser.add_argument("--out-notes", help="Write release notes to specified file (useful for gh release create)")
     parser.add_argument("--dry-run", action="store_true", help="Print collected PRs without calling AI API")
     parser.add_argument("--date", default=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d"), help="Release date string (default: today)")
@@ -227,19 +257,27 @@ def main():
     print(summary)
     print("\n" + "=" * 40)
 
+    release_tag = f"v{args.date}"
+    exists, existing_body = release_exists_on_github(release_tag)
+
     if args.out_notes:
+        notes_to_write = summary
+        if exists and existing_body:
+            # Append to existing release notes
+            notes_to_write = f"{existing_body.strip()}\n\n{summary}"
         with open(args.out_notes, "w", encoding="utf-8") as f:
-            f.write(summary + "\n")
-        print(f"Saved release notes to: {args.out_notes}")
+            f.write(notes_to_write.strip() + "\n")
+        print(f"Saved release notes to: {args.out_notes} (merged_with_existing={exists})")
 
     if args.write:
-        prepend_to_changelog(args.date, summary)
+        update_or_prepend_changelog(args.date, summary)
 
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as gh_out:
             gh_out.write("has_changes=true\n")
-            gh_out.write(f"release_tag=v{args.date}\n")
+            gh_out.write(f"release_tag={release_tag}\n")
             gh_out.write(f"release_title=TortoiseBots Update ({args.date})\n")
+            gh_out.write(f"release_exists={'true' if exists else 'false'}\n")
 
 
 if __name__ == "__main__":
