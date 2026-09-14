@@ -18,6 +18,23 @@
 - `docs/HOST_API.md` baseline realigned to merged upstream core `main` @ `5fafe43b` (#164)
 - Documented the module chat-hook contract settled by core PR #476, recording merged carriers for every dependent seam (#438, #469, #475, #476, #493) (#164)
 
+### Combat & AI
+- Tank designation is now explicit: `.bot role <name> tank|healer|dps|clear` forces a role, with tank kits mirroring native AiFactory strategies (`protection` / `tank feral`, `tank assist`, `pull`, `pull back`, `close`) instead of relying on guesses (#167)
+- Pull candidates resolve in a sane order — explicit role > designated tank > native spec — and get `+pull` attached dynamically; DPS is never auto-promoted to puller (#167)
+- Movement freeze during pulls is fixed, ranged fallback kicks in when the tank can't reach, and DPS hold fire during the threat window so pulls stop wiping the group (#167)
+
+### Addon Integration
+- New silent addon command channel lets the TBM companion addon fire `.bot` commands as addon messages: a `PlayerScript` on `PLAYERHOOK_ON_ADDON_MESSAGE` consumes `TBM`-prefixed payloads and routes them to the same `BotCommands::HandleChatCommand` entry point (#165)
+- Same grammar, same ownership/GM checks, same replies — but UI clicks print nothing to the chat frame and no request echo leaks to nearby players (#165)
+
+### Tooling & CI
+- Changelog generation is now idempotent per day: if today's `## YYYY-MM-DD` section already exists, new categories/bullets append to it instead of duplicating headers (#169)
+- Re-running the release workflow no longer dies on `HTTP 422: Release.tag_name already exists`; existing `vYYYY-MM-DD` releases get their notes merged/updated (#169)
+
+### Docs & Host API
+- `docs/HOST_API.md` baseline realigned to merged `tortoise-wow` `main` @ `5fafe43b`, with the chat-hook contract from core #476 now documented (#164)
+- Records the merged carriers for every seam the module depends on (#438, #469, #475, #476, #493) and points at `tools/verify_penqle_host_contract.sh` as the pre-build check (#164)
+
 ## 2026-09-14
 
 ### Combat & AI
