@@ -30,8 +30,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENCODE_ENDPOINT: ${{ secrets.OPENCODE_ENDPOINT }}
-          OPENCODE_BASE_URL: ${{ secrets.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
-          OPENCODE_MODEL: ${{ secrets.OPENCODE_MODEL || 'deepseek-v4.1-flash' }}
+          OPENCODE_MODEL: ${{ secrets.OPENCODE_MODEL }}
         run: |
           python3 tools/generate_changelog.py --write --out-notes /tmp/release_notes.md
 

@@ -24,8 +24,8 @@ import urllib.request
 import urllib.error
 import uuid
 
-DEFAULT_BASE_URL = os.environ.get("OPENCODE_ENDPOINT") or os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1")
-DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "deepseek-v4.1-flash")
+DEFAULT_BASE_URL = os.environ.get("OPENCODE_ENDPOINT") or os.environ.get("OPENCODE_BASE_URL", "")
+DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "")
 CHANGELOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
 
 
@@ -217,11 +217,11 @@ def main():
         print("\n[Dry Run] PRs collected successfully. Skipping AI API call.")
         sys.exit(0)
 
-    if not api_key:
-        print("Error: OPENCODE_API_KEY environment variable is required to generate AI summaries.", file=sys.stderr)
+    if not api_key or not base_url or not model:
+        print("Error: OPENCODE_API_KEY, OPENCODE_ENDPOINT, and OPENCODE_MODEL environment variables are required.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\nRequesting AI summary from OpenCode ({model} @ {base_url})...")
+    print("\nRequesting AI summary from configured provider...")
     summary = generate_summary_with_ai(prs, api_key, base_url, model)
     print("\nGenerated Changelog:\n")
     print(summary)
