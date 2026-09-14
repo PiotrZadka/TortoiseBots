@@ -239,7 +239,12 @@ bool TeleportMisplacedBot(::Player* bot, int32 areaLevel, const std::string& cau
 {
     if (bot->GetLevel() < 10)
     {
-        PlayerInfo const* info = sObjectMgr.GetPlayerInfo(bot->GetRace(), bot->GetClass());
+        // Goblin and High Elf bots are spawned in Durotar/Elwynn with their homebind
+        // set accordingly. GetPlayerInfo() returns the DBC island coordinates
+        // (Blackstone Island 5536 and Thalassian Highlands 5225) which are bot-excluded,
+        // so route these two races directly through homebind.
+        bool useHomebindOverride = bot->GetRace() == RACE_GOBLIN || bot->GetRace() == RACE_HIGH_ELF;
+        PlayerInfo const* info = useHomebindOverride ? nullptr : sObjectMgr.GetPlayerInfo(bot->GetRace(), bot->GetClass());
         bool moved = info && bot->TeleportTo(info->mapId, info->positionX, info->positionY, info->positionZ, info->orientation);
         if (!moved)
             moved = bot->TeleportToHomebind(0, false);
