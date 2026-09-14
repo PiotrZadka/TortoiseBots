@@ -800,6 +800,7 @@ protected:
     std::vector<std::string> m_recordedMessages;
     ai::Event lastEvent;
     LastKillerInfo lastKiller_;
+    bool deathHandled_ = false; // this death was logged and counted; cleared when the bot is seen alive again
 
 public:
     void RecordMessages(bool record, bool incomming = false) { m_recordMessages = record; m_recordIncommingMessages = incomming; if (!record) m_recordedMessages.clear(); }
