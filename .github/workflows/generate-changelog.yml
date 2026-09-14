@@ -2,11 +2,6 @@ name: Generate Changelog & Release
 
 on:
   workflow_dispatch:
-    inputs:
-      model:
-        description: "OpenCode AI model to use"
-        required: false
-        default: "deepseek-v4.1-flash"
   schedule:
     # Run weekly on Sunday at midnight UTC
     - cron: "0 0 * * 0"
@@ -36,7 +31,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           OPENCODE_ENDPOINT: ${{ secrets.OPENCODE_ENDPOINT }}
           OPENCODE_BASE_URL: ${{ secrets.OPENCODE_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
-          OPENCODE_MODEL: ${{ inputs.model || secrets.OPENCODE_MODEL || 'deepseek-v4.1-flash' }}
+          OPENCODE_MODEL: ${{ secrets.OPENCODE_MODEL || 'deepseek-v4.1-flash' }}
         run: |
           python3 tools/generate_changelog.py --write --out-notes /tmp/release_notes.md
 
