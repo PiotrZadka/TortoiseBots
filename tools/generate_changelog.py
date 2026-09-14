@@ -23,7 +23,7 @@ import sys
 import urllib.request
 import urllib.error
 
-DEFAULT_BASE_URL = os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1")
+DEFAULT_BASE_URL = os.environ.get("OPENCODE_ENDPOINT") or os.environ.get("OPENCODE_BASE_URL", "https://opencode.ai/zen/go/v1")
 DEFAULT_MODEL = os.environ.get("OPENCODE_MODEL", "deepseek-v4.1-flash")
 CHANGELOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CHANGELOG.md")
 
@@ -126,7 +126,10 @@ def generate_summary_with_ai(prs, api_key, base_url, model):
         "temperature": 0.3
     }
 
-    url = f"{base_url.rstrip('/')}/chat/completions"
+    if base_url.endswith("/chat/completions"):
+        url = base_url
+    else:
+        url = f"{base_url.rstrip('/')}/chat/completions"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}"
