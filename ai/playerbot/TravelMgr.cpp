@@ -445,7 +445,8 @@ bool RpgTravelDestination::IsPossible(const PlayerTravelInfo& info) const
     {
         AreaTableEntry const* area = point->GetArea();
         uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
-        if (zoneId == 5536 || zoneId == 5225)
+        if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+            (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || (area && PlayerbotAIConfig::IsIsolatedCustomZone(area->Id))))
             return false;
 
         int32 destAreaLevel = point->GetAreaLevel();
@@ -556,7 +557,8 @@ bool ExploreTravelDestination::IsPossible(const PlayerTravelInfo& info) const
         return false;
 
     uint32 zoneId = area->ZoneId ? area->ZoneId : area->Id;
-    if (zoneId == 5536 || zoneId == 5225)
+    if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+        (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || (area && PlayerbotAIConfig::IsIsolatedCustomZone(area->Id))))
         return false;
 
     if (GetLevel() && (uint32)GetLevel() > info.GetLevel() && info.GetLevel() < DEFAULT_MAX_LEVEL)
@@ -628,7 +630,8 @@ bool GrindTravelDestination::IsPossible(const PlayerTravelInfo& info) const
     {
         AreaTableEntry const* area = point->GetArea();
         uint32 zoneId = area ? (area->ZoneId ? area->ZoneId : area->Id) : 0;
-        if (zoneId == 5536 || zoneId == 5225)
+        if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones &&
+            (PlayerbotAIConfig::IsIsolatedCustomZone(zoneId) || (area && PlayerbotAIConfig::IsIsolatedCustomZone(area->Id))))
             return false;
 
         int32 destAreaLevel = point->GetAreaLevel();
@@ -2334,8 +2337,14 @@ bool TravelMgr::IsLocationLevelValid(const WorldPosition& position, const Player
     // fix: of 350 rejected quest-taker points, 299 had no resolvable area
     // whatsoever.
     //
-    // Elite and dungeon turn-ins are still held back by
-    // QuestRelationTravelDestination::IsPossible, which is where that belongs.
+    AreaTableEntry const* posArea = position.GetArea();
+    if (!sPlayerbotAIConfig.allowIsolatedCustomStartingZones && posArea)
+    {
+        uint32 posZoneId = posArea->ZoneId ? posArea->ZoneId : posArea->Id;
+        if (PlayerbotAIConfig::IsIsolatedCustomZone(posZoneId) || PlayerbotAIConfig::IsIsolatedCustomZone(posArea->Id))
+            return false;
+    }
+
     if (!(purposeFlag & (uint32)TravelDestinationPurpose::QuestTaker))
     {
         if (!areaLevel || (uint32)botLevel < areaLevel) //Skip points that are in a area that is too high level.

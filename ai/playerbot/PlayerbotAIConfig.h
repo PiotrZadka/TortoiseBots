@@ -217,6 +217,14 @@ public:
     // or no destination. Persisted ai_playerbot_zone_level is tried first
     // (with parent fallback) then immutable DBC AreaLevel/parent.
     bool enableRandomTeleports = false;
+    // Whether random bots are allowed in custom isolated starting zones
+    // (Blackstone Island 5536, Thalassian Highlands 5225, Alah'Thalas 2040).
+    // Default false (blocked and normalized to mainland starting zones).
+    bool allowIsolatedCustomStartingZones = false;
+    static bool IsIsolatedCustomZone(uint32 zoneOrAreaId)
+    {
+        return zoneOrAreaId == 5536 || zoneOrAreaId == 5225 || zoneOrAreaId == 2040;
+    }
     // Relocate a random bot that keeps dying where its level cannot survive:
     // after a successful rez, if the validated zone level exceeds bot level + 5
     // with 2+ deaths and no master/group, teleport once to a validated
