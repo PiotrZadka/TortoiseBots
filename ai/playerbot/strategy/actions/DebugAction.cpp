@@ -21,6 +21,7 @@
 #include "Maps/CellImpl.h"
 
 #include <iomanip>
+#include <typeindex>
 #include "SayAction.h"
 #include "Maps/MoveMap.h"
 
