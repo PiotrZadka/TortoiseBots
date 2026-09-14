@@ -6,9 +6,12 @@
 #include <numeric>
 #include <iomanip>
 #include <regex>
-#include <boost/algorithm/string.hpp>
+#include <string_view>
 
 using namespace ai;
+
+// Defined in Helpers.cpp.
+bool iequals(std::string_view a, std::string_view b);
 
 std::map<std::string, uint32> ChatHelper::consumableSubClasses;
 std::map<std::string, uint32> ChatHelper::tradeSubClasses;
@@ -930,11 +933,11 @@ bool ChatHelper::parseable(const std::string& text)
 
 BotRoles ChatHelper::parseRole(const std::string& text)
 {
-    if (boost::iequals(text, "healer"))
+    if (iequals(text, "healer"))
         return BotRoles::BOT_ROLE_HEALER;
-    else if (boost::iequals(text, "tank"))
+    else if (iequals(text, "tank"))
         return BotRoles::BOT_ROLE_TANK;
-    else if (boost::iequals(text, "dps"))
+    else if (iequals(text, "dps"))
         return BotRoles::BOT_ROLE_DPS;
 
     return BotRoles::BOT_ROLE_NONE;
@@ -979,9 +982,9 @@ std::string ChatHelper::formatClass(const Player* player, int spec)
 
 uint32 ChatHelper::parseGender(const std::string& text)
 {
-    if (boost::iequals(text, "male"))
+    if (iequals(text, "male"))
         return GENDER_MALE;
-    else if (boost::iequals(text, "female"))
+    else if (iequals(text, "female"))
         return GENDER_FEMALE;
     else if (Qualified::isValidNumberString(text))
     {
@@ -1005,9 +1008,9 @@ std::string ChatHelper::formatGender(uint8 gender)
 
 Team ChatHelper::parseTeam(const std::string& text)
 {
-    if (boost::iequals(text, "alliance"))
+    if (iequals(text, "alliance"))
         return ALLIANCE;
-    else if (boost::iequals(text, "horde"))
+    else if (iequals(text, "horde"))
         return HORDE;
     else if (Qualified::isValidNumberString(text))
     {
@@ -1032,7 +1035,7 @@ std::string ChatHelper::formatTeam(Team team)
 uint32 ChatHelper::parseClass(const std::string& text)
 {
     for (auto& [classId, className] : classes)
-        if (boost::iequals(className, text))
+        if (iequals(className, text))
             return classId;
 
     if (Qualified::isValidNumberString(text))
@@ -1053,7 +1056,7 @@ std::string ChatHelper::formatClass(uint8 cls)
 uint32 ChatHelper::parseRace(const std::string& text)
 {
     for (auto& [raceId, raceName] : races)
-        if (boost::iequals(raceName, text))
+        if (iequals(raceName, text))
             return raceId;
 
     if (Qualified::isValidNumberString(text))

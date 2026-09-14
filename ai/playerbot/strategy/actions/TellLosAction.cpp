@@ -2,9 +2,10 @@
 #include "playerbot/playerbot.h"
 #include "TellLosAction.h"
 
-#include <boost/algorithm/string.hpp>
-
 using namespace ai;
+
+// Defined in Helpers.cpp.
+std::string& trim(std::string& s);
 
 constexpr std::string_view GOS_PARAM = "gos";
 constexpr std::string_view GAMEOBJECTS_PARAM = "game objects";
@@ -227,7 +228,7 @@ std::vector<LosModifierStruct> TellLosAction::ParseLosModifiers(const std::strin
 
    for (std::string param : params)
    {
-      boost::trim(param);
+      trim(param);
 
       if (param.find(FILTER_NAME_PARAM) == 0)
       {

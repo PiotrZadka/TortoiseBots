@@ -7,10 +7,13 @@
 #include "playerbot/ServerFacade.h"
 #include "playerbot/AiFactory.h"
 #include <regex>
-#include <boost/algorithm/string.hpp>
+#include <string_view>
 #include "playerbot/PlayerbotLLMInterface.h"
 
 using namespace ai;
+
+// Defined in Helpers.cpp.
+bool istarts_with(std::string_view text, std::string_view prefix);
 
 std::unordered_set<std::string> noReplyMsgs = { "all ?", "attack", "attack rti", "bank", "c", "co ?", "de ?", "dead ?", "do accept invitation", "faction", "flee", "follow", "give leader", "guard", "guild leave", "help", "home", "items", "join", "jump", "leave", "lfg", "loot", "los", "nc ?", "pet aggressive", "pet defensive", "pet passive", "pet follow", "pet stay", "pet attack", "pet dismiss", "pet call", "pull", "pull rti", "quests", "quests co", "quests in", "quests all", "react ?", "release", "repair", "reset", "reset ai", "reset strats", "revive", "roll feedback", "skill", "spells", "stats", "stay", "summon", "talents", "talk", "trainer" "trainer learn", "u go", "who", "where" };
 
@@ -484,20 +487,20 @@ void ChatReplyAction::ChatReplyDo(Player* bot, uint32 type, uint32 guid1, uint32
 
     ChatChannelSource chatChannelSource = PlayerbotAIStorage::Instance().GetAI(bot)->GetChatChannelSource(bot, type, chanName);
 
-    if ((boost::algorithm::istarts_with(msg, "LFG") || boost::algorithm::istarts_with(msg, "LFM"))
+    if ((istarts_with(msg, "LFG") || istarts_with(msg, "LFM"))
         && HandleLFGQuestsReply(bot, chatChannelSource, msg, name))
     {
         return;
     }
 
-    if ((boost::algorithm::istarts_with(msg, "WTB"))
+    if ((istarts_with(msg, "WTB"))
         && HandleWTBItemsReply(bot, chatChannelSource, msg, name))
     {
         return;
     }
 
     //toxic links
-    if (boost::algorithm::istarts_with(msg, sPlayerbotAIConfig.toxicLinksPrefix)
+    if (istarts_with(msg, sPlayerbotAIConfig.toxicLinksPrefix)
         && (PlayerbotAIStorage::Instance().GetAI(bot)->GetChatHelper()->ExtractAllItemIds(msg).size() > 0 || PlayerbotAIStorage::Instance().GetAI(bot)->GetChatHelper()->ExtractAllQuestIds(msg).size() > 0))
     {
         HandleToxicLinksReply(bot, chatChannelSource, msg, name);

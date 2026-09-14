@@ -3,9 +3,10 @@
 #include "ResetAiAction.h"
 #include "playerbot/PlayerbotDbStore.h"
 
-#include <boost/algorithm/string.hpp>
-
 using namespace ai;
+
+// Defined in Helpers.cpp.
+std::string& trim(std::string& s);
 
 bool ResetAiAction::Execute(Event& event)
 {
@@ -68,12 +69,12 @@ void ResetAiAction::ResetValues()
 bool SaveAiAction::Execute(Event& event)
 {
    std::string preset = event.GetParam();
-   boost::trim(preset);
+   trim(preset);
 
    if (preset.empty())
    {
       preset = getQualifier();
-      boost::trim(preset);
+      trim(preset);
    }
 
    sPlayerbotDbStore.Save(ai, preset);
@@ -89,12 +90,12 @@ bool SaveAiAction::Execute(Event& event)
 bool LoadAiAction::Execute(Event& event)
 {
    std::string preset = event.GetParam();
-   boost::trim(preset);
+   trim(preset);
 
    if (preset.empty())
    {
       preset = getQualifier();
-      boost::trim(preset);
+      trim(preset);
    }
 
    sPlayerbotDbStore.Load(ai, preset);

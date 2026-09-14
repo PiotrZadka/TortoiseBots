@@ -15,11 +15,13 @@
 #include <iostream>
 #include <numeric>
 #include <iomanip>
-#include <boost/algorithm/string.hpp>
 #include <regex>
 #include <set>
 #include <fstream>
 #include <sstream>
+
+// Defined in Helpers.cpp.
+std::string& trim(std::string& s);
 
 std::vector<std::string> ConfigAccess::GetValues(const std::string& name) const
 {
@@ -1342,7 +1344,7 @@ void PlayerbotAIConfig::LoadLLMDefaultPrompts(const std::string& fileName)
 
     while (std::getline(file, line))
     {
-        boost::trim(line);
+        trim(line);
         if (line.empty() || line.front() == '#')
             continue;
 
@@ -1355,8 +1357,8 @@ void PlayerbotAIConfig::LoadLLMDefaultPrompts(const std::string& fileName)
 
         std::string name = line.substr(0, delim);
         std::string text = line.substr(delim + 2);
-        boost::trim(name);
-        boost::trim(text);
+        trim(name);
+        trim(text);
 
         if (name.empty())
         {

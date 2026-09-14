@@ -51,7 +51,7 @@
 #include "Chat/ChannelMgr.h"
 #include "PlayerbotLLMInterface.h"
 
-#include <boost/algorithm/string.hpp>
+#include <string_view>
 
 
 #ifdef BUILD_ELUNA
@@ -113,6 +113,7 @@ std::vector<std::string> split(const std::string &s, char delim);
 char * strstri (std::string str1, std::string str2);
 uint64 extractGuid(WorldPacket& packet);
 std::string &trim(std::string &s);
+bool istarts_with(std::string_view text, std::string_view prefix); // Helpers.cpp
 
 std::set<std::string> PlayerbotAI::unsecuredCommands;
 
@@ -1909,7 +1910,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
                     if (lang == LANG_ADDON)
                         return;
 
-                    if (boost::algorithm::istarts_with(message, sPlayerbotAIConfig.toxicLinksPrefix)
+                    if (istarts_with(message, sPlayerbotAIConfig.toxicLinksPrefix)
                         && (GetChatHelper()->ExtractAllItemIds(message).size() > 0 || GetChatHelper()->ExtractAllQuestIds(message).size() > 0)
                         && sPlayerbotAIConfig.toxicLinksRepliesChance)
                     {

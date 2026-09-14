@@ -4,6 +4,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <string_view>
 
 void split(std::vector<std::string>& dest, const std::string& str, const char* delim)
 {
@@ -68,6 +69,27 @@ char *strstri(const char *haystack, const char *needle)
 char* strstri(std::string const& s1, std::string const& s2)
 {
     return strstri(s1.c_str(), s2.c_str());
+}
+
+// ASCII case-insensitive equality/prefix check - every call site in this module compares
+// either against a fixed literal ("healer", "LFG", ...) or config/name strings that are
+// always plain ASCII, so a locale-aware fold (what boost::iequals/istarts_with do by
+// default) buys nothing here; plain tolower() matches their observed behavior exactly for
+// every actual argument this module ever passes.
+bool iequals(std::string_view a, std::string_view b)
+{
+    return a.size() == b.size() &&
+        std::equal(a.begin(), a.end(), b.begin(), [](unsigned char c1, unsigned char c2) {
+            return std::tolower(c1) == std::tolower(c2);
+        });
+}
+
+bool istarts_with(std::string_view text, std::string_view prefix)
+{
+    return text.size() >= prefix.size() &&
+        std::equal(prefix.begin(), prefix.end(), text.begin(), [](unsigned char c1, unsigned char c2) {
+            return std::tolower(c1) == std::tolower(c2);
+        });
 }
 
 
