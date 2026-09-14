@@ -36,9 +36,6 @@
 #include <memory>
 #include <random>
 #include <set>
-#if __has_include(<openssl/rand.h>)
-#include <openssl/rand.h>
-#endif
 
 namespace TortoiseBots
 {
@@ -99,20 +96,17 @@ std::string GenerateRandomPassword()
     catch (...)
     {
     }
-#if __has_include(<openssl/rand.h>)
-    {
-        unsigned char buf[kLen];
-        if (RAND_bytes(buf, static_cast<int>(kLen)) == 1)
-        {
-            pw.clear();
-            for (size_t i = 0; i < kLen; ++i)
-                pw.push_back(charset[buf[i] % kCharsetSize]);
-            if (pw.size() == kLen)
-                return pw;
-        }
-    }
-#endif
-    // Safe bounded fallback: game MTRand, still within length/charset bounds.
+    // Safe bounded fallback: game MTRand, still within length/charset bounds. This used to
+    // try OpenSSL's RAND_bytes first, as a middle tier between std::random_device and this -
+    // removed as a real external dependency (dynamically linked, not header-only) for a case
+    // std::random_device essentially never hits in practice on any real OS: the catch(...)
+    // above is defensive, not something normal operation ever reaches, and this fallback was
+    // already "safe" on its own before RAND_bytes existed here. Confirmed via dumpbin
+    // /imports against a real Windows build: this was the sole reason mangosd.exe needed
+    // libcrypto-3-x64.dll at all once the engine side of tortoise-wow#496 landed - the old
+    // __has_include(<openssl/rand.h>) guard only checked that some OpenSSL's headers were
+    // found, never that the specific OpenSSL a given core links against actually exports
+    // RAND_bytes, and tortoise-wow's own bundled Windows OpenSSL 1.1 does not.
     pw.clear();
     for (size_t i = 0; i < kLen; ++i)
         pw.push_back(charset[urand(0, uint32(kCharsetSize - 1))]);
