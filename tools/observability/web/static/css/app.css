@@ -923,3 +923,358 @@ body {
   border-radius: 999px;
   transition: width 0.3s ease;
 }
+
+/* Armory (bot inspector): text-first, dashboard-native. No image assets. */
+.armory-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.armory-topbar .badge {
+  margin-left: auto;
+}
+
+.armory-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.armory-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.armory-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.armory-head-right {
+  text-align: right;
+}
+
+.armory-played {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.money-gold { color: #e5cc80; }
+.money-silver { color: #e6e6e6; }
+.money-copper { color: #c89b7b; }
+
+.armory-gear {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 20px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .armory-gear { grid-template-columns: 1fr; }
+}
+
+.armory-gear-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.armory-weapons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 20px;
+  margin: 6px 0 20px;
+}
+
+@media (max-width: 900px) {
+  .armory-weapons { grid-template-columns: 1fr; }
+}
+
+.gear-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--text-dim);
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.gear-slot {
+  width: 78px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gear-name {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gear-ilvl {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.gear-empty { opacity: 0.55; }
+.gear-empty .gear-name { color: var(--text-dim); font-weight: 400; }
+
+/* Quality colors from core SharedDefines.h (ItemQualityColors). Text blue
+   uses the dashboard bright accent for readability on dark backgrounds. */
+.quality-border-0 { border-left-color: #9d9d9d; }
+.quality-border-1 { border-left-color: #ffffff; }
+.quality-border-2 { border-left-color: #1eff00; }
+.quality-border-3 { border-left-color: #0070dd; }
+.quality-border-4 { border-left-color: #a335ee; }
+.quality-border-5 { border-left-color: #ff8000; }
+.quality-border-6 { border-left-color: #e6cc80; }
+.quality-text-0 { color: #9d9d9d; }
+.quality-text-1 { color: #ffffff; }
+.quality-text-2 { color: #1eff00; }
+.quality-text-3 { color: var(--accent-blue-bright); }
+.quality-text-4 { color: #a335ee; }
+.quality-text-5 { color: #ff8000; }
+.quality-text-6 { color: #e6cc80; }
+
+/* Rarity pills reuse the dashboard badge shape with WoW quality colors. */
+.quality-badge-0 { background: rgba(157, 157, 157, 0.15); color: #9d9d9d; }
+.quality-badge-1 { background: rgba(255, 255, 255, 0.08); color: #c9d1d9; }
+.quality-badge-2 { background: rgba(30, 255, 0, 0.12); color: #1eff00; }
+.quality-badge-3 { background: rgba(88, 166, 255, 0.15); color: var(--accent-blue-bright); }
+.quality-badge-4 { background: rgba(163, 53, 238, 0.15); color: #a335ee; }
+.quality-badge-5 { background: rgba(255, 128, 0, 0.15); color: #ff8000; }
+.quality-badge-6 { background: rgba(230, 204, 128, 0.15); color: #e6cc80; }
+
+.armory-subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.armory-subtab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.armory-subtab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-main);
+}
+
+.armory-subtab.active {
+  background-color: rgba(46, 160, 67, 0.12);
+  border-color: var(--border-active);
+  color: #fff;
+}
+
+.armory-content-panel {
+  min-height: 200px;
+}
+
+.armory-stat-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 24px;
+}
+
+@media (max-width: 900px) {
+  .armory-stat-groups { grid-template-columns: 1fr; }
+}
+
+.bag-block {
+  margin-bottom: 18px;
+}
+
+.bag-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.bag-head .progress-bar-bg {
+  max-width: 220px;
+}
+
+.armory-trees {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .armory-trees { grid-template-columns: 1fr; }
+}
+
+.talent-tree {
+  background-color: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.talent-tree-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.talent-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.talent-tier {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.talent-tier:last-child {
+  border-bottom: none;
+}
+
+.talent-tier-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+}
+
+.talent-tier-label span {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.talent-tier-nodes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.talent-node {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 4px;
+  text-align: center;
+}
+
+.talent-node .talent-rank {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.talent-name {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.talent-node.learned {
+  border-color: rgba(230, 204, 128, 0.6);
+  background: rgba(230, 204, 128, 0.06);
+}
+
+.talent-node.partial {
+  border-color: rgba(210, 153, 34, 0.5);
+}
+
+.talent-node.unlearned {
+  opacity: 0.45;
+}
+
+/* Item tooltip: WoW-style floating panel, dashboard-native colors. Reuses the
+   existing .map-tooltip positioning pattern; content comes from
+   world.item_template fields only (no images, no external data). */
+.item-tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: rgba(10, 13, 20, 0.97);
+  border: 1px solid var(--border-color);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-width: 280px;
+  z-index: 10000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+}
+
+.item-tooltip .tip-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.item-tooltip .tip-sub {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.item-tooltip .tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-main);
+}
+
+.item-tooltip .tip-stat {
+  color: #1eff00;
+}
+
+.item-tooltip .tip-proc {
+  color: var(--accent-green-bright);
+}
+
+.item-tooltip .tip-flavor {
+  color: var(--accent-yellow);
+  font-style: italic;
+  margin-top: 4px;
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"tortoise-observability/internal/armory"
 	"tortoise-observability/internal/auth"
 	zoneproject "tortoise-observability/internal/map"
 	"tortoise-observability/internal/metrics"
@@ -50,6 +51,10 @@ func main() {
 	dbUser := flag.String("db-user", getEnv("DB_USER", "mangos"), "MariaDB / MySQL user")
 	dbPass := flag.String("db-pass", getEnv("DB_PASSWORD", "mangos"), "MariaDB / MySQL password")
 	dbName := flag.String("db-name", getEnv("DB_LOGIN", "tw_logon"), "MariaDB / MySQL realmd database name")
+	dbChar := flag.String("db-char", getEnv("DB_CHAR", "tw_char"), "MariaDB / MySQL characters database name")
+	dbWorld := flag.String("db-world", getEnv("DB_WORLD", "tw_world"), "MariaDB / MySQL world database name")
+	botPrefix := flag.String("bot-account-prefix", getEnv("BOT_ACCOUNT_PREFIX", "rndbot"), "Account name prefix identifying bot characters (must match AiPlayerbot.RandomBotAccountPrefix)")
+	dbcDir := flag.String("dbc-dir", getEnv("DBC_DIR", ""), "Optional operator DBC directory (same files mangosd reads); enables talent trees when world talent mirrors are empty")
 	issueMinAgeSec := flag.Int("issue-min-age-sec", getEnvInt("ISSUE_MIN_AGE_SEC", 300), "Only surface bot issues that persist at least this many seconds")
 	devNoAuth := flag.Bool("dev-no-auth", false, "Disable Game Master authentication check for local dev testing")
 	flag.Parse()
@@ -91,6 +96,22 @@ func main() {
 		log.Fatalf("Failed to initialize auth service: %v", err)
 	}
 	log.Printf("[Auth] Realmd MySQL authentication ready against %s:%d/%s", *dbHost, *dbPort, *dbName)
+
+	armoryService, err := armory.NewService(armory.Config{
+		DBHost:           *dbHost,
+		DBPort:           *dbPort,
+		DBUser:           *dbUser,
+		DBPassword:       *dbPass,
+		CharDB:           *dbChar,
+		WorldDB:          *dbWorld,
+		LoginDB:          *dbName,
+		BotAccountPrefix: *botPrefix,
+		DBCDir:           *dbcDir,
+	})
+	if err != nil {
+		log.Fatalf("Failed to initialize armory service: %v", err)
+	}
+	log.Printf("[Armory] Service initialized for %s and %s", *dbChar, *dbWorld)
 
 	// 5. WebSocket hub and UDP ingestion
 	hub := ws.NewHub()
@@ -228,6 +249,38 @@ func main() {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
+	}))
+
+	mux.HandleFunc("GET /api/v1/armory/bots", requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		bots, err := armoryService.ListBots(q)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, bots)
+	}))
+
+	mux.HandleFunc("GET /api/v1/armory/bot/{guid}", requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		guidStr := r.PathValue("guid")
+		guid, err := strconv.ParseUint(guidStr, 10, 32)
+		if err != nil {
+			http.Error(w, "Invalid guid", http.StatusBadRequest)
+			return
+		}
+
+		profile, err := armoryService.GetBotProfile(uint32(guid))
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				log.Printf("[Armory] profile guid=%d not found (deleted or non-bot account)", guid)
+				http.Error(w, err.Error(), http.StatusNotFound)
+			} else {
+				log.Printf("[Armory] profile guid=%d failed: %v", guid, err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+		writeJSON(w, profile)
 	}))
 
 	upgrader := websocket.Upgrader{
